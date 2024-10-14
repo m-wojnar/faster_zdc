@@ -1,0 +1,34 @@
+[project]
+name = "zdc"
+version = "0.2.0"
+
+description = "Even faster simulation of the Zero Degree Calorimeter responses with generative neural networks"
+keywords = ["generative neural networks", "fast simulations", "high-energy physics", "zero degree calorimeter"]
+readme = "README.md"
+license = {file = "LICENSE"}
+
+authors = [
+  {name = "Maksymilian Wojnar", email = "mwojnar@agh.edu.pl"}
+]
+
+requires-python = ">=3.12"
+dependencies = [
+  "cloudpickle~=3.1.0",
+  "diffusers[training]~=0.30.3",
+  "flax~=0.9.0",
+  "jax~=0.4.34",
+  "lz4~=4.3.3",
+  "optax~=0.2.3",
+  "seaborn~=0.13.2",
+  "scikit-learn~=1.5.2",
+  "torch~=2.4.1",
+  "tqdm~=4.66.5",
+  "wandb~=0.18.3"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["zdc"]
