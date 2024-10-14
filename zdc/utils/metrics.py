@@ -7,12 +7,12 @@ import wandb
 
 
 class Metrics:
-    def __init__(self, job_type, name, use_wandb=False):
+    def __init__(self, job_type, name, use_wandb=True):
         self.metrics = defaultdict(list)
         self.use_wandb = use_wandb
 
         if use_wandb:
-            wandb.init(project='zdc', job_type=job_type, name=name)
+            wandb.init(project='faster_zdc', job_type=job_type, name=name)
 
     def add(self, metrics, type):
         for name, value in metrics.items():
