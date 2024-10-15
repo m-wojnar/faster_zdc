@@ -14,8 +14,8 @@ from zdc.utils.train import train_loop
 
 
 optimizer = opt_with_cosine_schedule(
-    optimizer=partial(optax.adamw, weight_decay=0.01),
-    peak_value=3e-3,
+    optimizer=partial(optax.adam),
+    peak_value=3e-4,
     epochs=100,
     batch_size=256
 )
@@ -24,9 +24,8 @@ optimizer = opt_with_cosine_schedule(
 class VAE(nn.Module):
     channels: int = 4
     z_channels: int = 8
-    emb_channels: int = 16
     channel_multipliers: tuple = (1, 2, 4)
-    n_resnet_blocks: int = 2
+    n_resnet_blocks: int = 1
 
     @nn.compact
     def __call__(self, img):
@@ -35,13 +34,12 @@ class VAE(nn.Module):
 
     def encode(self, img):
         z = Encoder(self.channels, self.channel_multipliers, self.n_resnet_blocks)(img)
-        z_mean = nn.Conv(self.z_channels, kernel_size=(1, 1))(z)
-        z_log_var = nn.Conv(self.z_channels, kernel_size=(1, 1))(z)
+        z_mean = nn.Conv(self.z_channels, kernel_size=(1, 1), dtype=jnp.bfloat16)(z)
+        z_log_var = nn.Conv(self.z_channels, kernel_size=(1, 1, 1), dtype=jnp.bfloat16)(z)
         return Sampling()(z_mean, z_log_var), z_mean, z_log_var
 
     def decode(self, z):
-        x = nn.Conv(self.emb_channels, kernel_size=(1, 1))(z)
-        return Decoder(self.channels, self.channel_multipliers, self.n_resnet_blocks)(x)
+        return Decoder(self.channels, self.channel_multipliers, self.n_resnet_blocks)(z)
 
     def gen(self, z):
         return self.decode(z)
@@ -54,20 +52,20 @@ class Encoder(nn.Module):
 
     @nn.compact
     def __call__(self, img):
-        x = nn.Conv(self.channels, kernel_size=(3, 3), padding='SAME')(img)
+        x = nn.Conv(self.channels, kernel_size=(3, 3), padding='SAME', dtype=jnp.bfloat16)(img)
 
         for i, multiplier in enumerate(self.channel_multipliers):
             channels = self.channels * multiplier
             for _ in range(self.n_resnet_blocks):
                 x = ResidualBlock(channels)(x)
             if i != len(self.channel_multipliers) - 1:
-                x = nn.Conv(channels, kernel_size=(3, 3), strides=(2, 2), padding='SAME')(x)
+                x = nn.Conv(channels, kernel_size=(3, 3), strides=(2, 2), padding='SAME', dtype=jnp.bfloat16)(x)
 
         x = ResidualBlock(channels)(x)
         x = AttentionBlock(channels)(x)
         x = ResidualBlock(channels)(x)
 
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm(dtype=jnp.bfloat16)(x)
         x = nn.swish(x)
 
         return x
@@ -81,7 +79,7 @@ class Decoder(nn.Module):
     @nn.compact
     def __call__(self, z):
         channels = self.channels * self.channel_multipliers[-1]
-        x = nn.Conv(channels, kernel_size=(3, 3), padding='SAME')(z)
+        x = nn.Conv(channels, kernel_size=(3, 3), padding='SAME', dtype=jnp.bfloat16)(z)
 
         x = ResidualBlock(channels)(x)
         x = AttentionBlock(channels)(x)
@@ -93,11 +91,11 @@ class Decoder(nn.Module):
                 x = ResidualBlock(channels)(x)
             if i != 0:
                 x = UpSample()(x)
-                x = nn.Conv(channels, kernel_size=(3, 3), padding='SAME')(x)
+                x = nn.Conv(channels, kernel_size=(3, 3), padding='SAME', dtype=jnp.bfloat16)(x)
 
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm(dtype=jnp.bfloat16)(x)
         x = nn.swish(x)
-        x = nn.Conv(1, kernel_size=(3, 3), padding='SAME')(x)
+        x = nn.Conv(1, kernel_size=(3, 3), padding='SAME', dtype=jnp.bfloat16)(x)
 
         return x
 
@@ -109,10 +107,10 @@ class AttentionBlock(nn.Module):
     def __call__(self, x):
         residual = x
 
-        x = nn.LayerNorm()(x)
-        q = nn.Conv(self.channels, kernel_size=(1, 1))(x)
-        k = nn.Conv(self.channels, kernel_size=(1, 1))(x)
-        v = nn.Conv(self.channels, kernel_size=(1, 1))(x)
+        x = nn.LayerNorm(dtype=jnp.bfloat16)(x)
+        q = nn.Conv(self.channels, kernel_size=(1, 1), dtype=jnp.bfloat16)(x)
+        k = nn.Conv(self.channels, kernel_size=(1, 1), dtype=jnp.bfloat16)(x)
+        v = nn.Conv(self.channels, kernel_size=(1, 1), dtype=jnp.bfloat16)(x)
 
         _, h, w, c = q.shape
         q = Reshape((h * w, c))(q)
@@ -124,7 +122,7 @@ class AttentionBlock(nn.Module):
         x = jnp.einsum('bij,bcj->bci', x, v)
 
         x = Reshape((h, w, c))(x)
-        x = nn.Conv(self.channels, kernel_size=(1, 1))(x)
+        x = nn.Conv(self.channels, kernel_size=(1, 1), dtype=jnp.bfloat16)(x)
         x = x + residual
 
         return x
@@ -137,16 +135,16 @@ class ResidualBlock(nn.Module):
     def __call__(self, x):
         residual = x
 
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm(dtype=jnp.bfloat16)(x)
         x = nn.swish(x)
-        x = nn.Conv(self.channels, kernel_size=(3, 3), padding='SAME')(x)
+        x = nn.Conv(self.channels, kernel_size=(3, 3), padding='SAME', dtype=jnp.bfloat16)(x)
 
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm(dtype=jnp.bfloat16)(x)
         x = nn.swish(x)
-        x = nn.Conv(self.channels, kernel_size=(3, 3), padding='SAME')(x)
+        x = nn.Conv(self.channels, kernel_size=(3, 3), padding='SAME', dtype=jnp.bfloat16)(x)
 
         if residual.shape[-1] != self.channels:
-            residual = nn.Conv(self.channels, kernel_size=(1, 1))(residual)
+            residual = nn.Conv(self.channels, kernel_size=(1, 1), dtype=jnp.bfloat16)(residual)
 
         return x + residual
 

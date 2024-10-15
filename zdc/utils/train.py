@@ -26,7 +26,7 @@ def default_eval_fn(generated, *dataset):
 
 def default_generate_fn(model):
     def generate_fn(params, state, key, *x):
-        return forward(model, params, state, key, x[1], method='gen')[0]
+        return forward(model, params, state, key, x[1], method='gen')[0].astype(jnp.float32)
 
     return generate_fn
 

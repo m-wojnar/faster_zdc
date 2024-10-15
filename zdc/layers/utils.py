@@ -28,5 +28,5 @@ class Concatenate(nn.Module):
 class Sampling(nn.Module):
     @nn.compact
     def __call__(self, z_mean, z_log_var):
-        epsilon = jax.random.normal(self.make_rng('zdc'), z_mean.shape)
+        epsilon = jax.random.normal(self.make_rng('zdc'), z_mean.shape, dtype=z_mean.dtype)
         return z_mean + jnp.exp(0.5 * z_log_var) * epsilon
