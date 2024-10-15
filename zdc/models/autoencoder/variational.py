@@ -151,7 +151,8 @@ class ResidualBlock(nn.Module):
 
 
 def loss_fn(params, state, key, img, cond, model, kl_weight=0.7):
-    (reconstructed, z_mean, z_log_var), state = forward(model, params, state, key, img)
+    pred, state = forward(model, params, state, key, img)
+    (reconstructed, z_mean, z_log_var) = jax.tree_map(lambda x: x.astype(jnp.float32), pred)
     kl = kl_loss(z_mean, z_log_var)
     mse = mse_loss(img, reconstructed)
     loss = kl_weight * kl + mse
