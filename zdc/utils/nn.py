@@ -47,7 +47,7 @@ def load_model(path):
         return cloudpickle.load(f)
 
 
-def opt_with_cosine_schedule(optimizer, peak_value, pct_start=0.1, div_factor=25, final_div_factor=100, n_examples=214746, epochs=100, batch_size=256):
+def opt_with_cosine_schedule(optimizer, peak_value, pct_start=0.1, div_factor=25, final_div_factor=1000, n_examples=214746, epochs=100, batch_size=256):
     train_steps = epochs * n_examples // batch_size
     lr = optax.cosine_onecycle_schedule(train_steps, peak_value=peak_value, pct_start=pct_start, div_factor=div_factor, final_div_factor=final_div_factor)
     return optimizer(lr)

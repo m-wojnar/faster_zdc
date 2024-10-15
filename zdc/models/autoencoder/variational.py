@@ -96,6 +96,7 @@ class Decoder(nn.Module):
         x = nn.LayerNorm(dtype=jnp.bfloat16)(x)
         x = nn.swish(x)
         x = nn.Conv(1, kernel_size=(3, 3), padding='SAME', dtype=jnp.bfloat16)(x)
+        x = nn.relu(x)
 
         return x
 
