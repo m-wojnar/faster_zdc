@@ -33,7 +33,7 @@ def default_generate_fn(model):
 
 def train_loop(
         name, train_fn, eval_fn, generate_fn, train_dataset, val_dataset, test_dataset,
-        train_metrics, eval_metrics, params, state, opt_state, key, epochs=100, batch_size=256, n_rep=5, load_pdgid=False
+        train_metrics, eval_metrics, params, state, opt_state, key, epochs=50, batch_size=256, n_rep=5, load_pdgid=False
 ):
     if eval_fn is None:
         eval_fn = default_eval_fn
