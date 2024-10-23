@@ -244,11 +244,11 @@ def disc_loss_fn(disc_params, gen_params, state, forward_key, *x, model):
 
     real = nn.relu(1 - real_output).mean()
     fake = nn.relu(1 + fake_output).mean()
-    disc_real_acc = (real_output > 0).mean()
-    disc_fake_acc = (fake_output < 0).mean()
+    disc_real_logits = real_output.mean()
+    disc_fake_logits = fake_output.mean()
 
     loss = real + fake
-    return loss, (state, loss, disc_real_acc, disc_fake_acc)
+    return loss, (state, loss, disc_real_logits, disc_fake_logits)
 
 
 def gen_loss_fn(gen_params, disc_params, state, forward_key, *x, model, loss_weights, lpips_fn):
@@ -259,11 +259,11 @@ def gen_loss_fn(gen_params, disc_params, state, forward_key, *x, model, loss_wei
     kl = kl_loss(z_mean, z_log_var)
     perc = lpips_fn(img, generated)
     adv = -fake_output.mean()
-    gen_acc = (fake_output > 0).mean()
+    gen_logits = fake_output.mean()
 
     l2_weight, kl_weight, adv_weight, perc_weight = loss_weights
     loss = l2_weight * l2 + kl_weight * kl + adv_weight * adv + perc_weight * perc
-    return loss, (state, loss, l2, kl, adv, perc, gen_acc)
+    return loss, (state, loss, l2, kl, adv, perc, gen_logits)
 
 
 def step_fn(params, carry, opt_state, disc_optimizer, gen_optimizer, disc_loss_fn, gen_loss_fn):
@@ -301,10 +301,10 @@ if __name__ == '__main__':
         disc_optimizer=disc_optimizer,
         gen_optimizer=gen_optimizer,
         disc_loss_fn=partial(disc_loss_fn, model=model),
-        gen_loss_fn=partial(gen_loss_fn, model=model, loss_weights=(1.0, 0.7, 0.2, 1.0), lpips_fn=perceptual_loss())
+        gen_loss_fn=partial(gen_loss_fn, model=model, loss_weights=(1.0, 0.7, 0.2, 100.0), lpips_fn=perceptual_loss())
     ))
     generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[0], method='gen')[0])
-    train_metrics = ('disc_loss', 'disc_real_acc', 'disc_fake_acc', 'gen_loss', 'l2_loss', 'kl_loss', 'adv_loss', 'perc_loss', 'gen_acc', 'disc_gn', 'gen_gn')
+    train_metrics = ('disc_loss', 'disc_real_logits', 'disc_fake_logits', 'gen_loss', 'l2_loss', 'kl_loss', 'adv_loss', 'perc_loss', 'gen_logits', 'disc_gn', 'gen_gn')
 
     train_loop(
         'variational_gan', train_fn, None, generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
