@@ -9,15 +9,15 @@ from zdc.utils.wasserstein import wasserstein_channels
 
 
 def kl_loss(mean, log_var):
-    return -0.5 * (1. + log_var - jnp.square(mean) - jnp.exp(log_var)).reshape(mean.shape[0], -1).sum(axis=-1).mean()
+    return -0.5 * (1. + log_var - jnp.square(mean) - jnp.exp(log_var)).mean()
 
 
 def mse_loss(x, y):
-    return jnp.square(x - y).reshape(x.shape[0], -1).sum(axis=-1).mean()
+    return jnp.square(x - y).mean()
 
 
 def mae_loss(x, y):
-    return jnp.abs(x - y).reshape(x.shape[0], -1).sum(axis=-1).mean()
+    return jnp.abs(x - y).mean()
 
 
 def wasserstein_loss(ch_true, ch_pred):
@@ -25,7 +25,7 @@ def wasserstein_loss(ch_true, ch_pred):
 
 
 def xentropy_loss(x, y):
-    return optax.sigmoid_binary_cross_entropy(x, y).reshape(x.shape[0], -1).sum(axis=-1).mean()
+    return optax.sigmoid_binary_cross_entropy(x, y).mean()
 
 
 def perceptual_loss():
