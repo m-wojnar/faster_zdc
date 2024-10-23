@@ -70,7 +70,7 @@ def train_loop(
 
         if generated.shape[1:] == RESPONSE_SHAPE:
             plot_key, subkey = jax.random.split(plot_key)
-            metrics.plot_responses(samples[0], generate_fn(params, state, subkey, *samples), epoch)
+            metrics.plot_responses(samples[0], generate_fn(params, state, subkey, *samples).astype(jnp.float32), epoch)
 
         save_model(params, state, f'checkpoints/{name}/epoch_{epoch + 1}.pkl.lz4')
 

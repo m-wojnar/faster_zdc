@@ -9,7 +9,7 @@ def gradient_step(params, loss_params, opt_state, optimizer, loss_fn):
     updates, opt_state = optimizer.update(grads, opt_state, params=params, grad_fn=jax.grad(lambda p, _: loss_fn(p, *loss_params)[0]))
     params = optax.apply_updates(params, updates)
 
-    return params, opt_state, aux
+    return params, opt_state, grads, aux
 
 
 def init(model, key, *x, print_summary=False):
@@ -20,7 +20,7 @@ def init(model, key, *x, print_summary=False):
     state = variables
 
     if print_summary:
-        print(model.tabulate(jax.random.key(0), *x, compute_flops=True))
+        print(model.tabulate(jax.random.key(0), *x))
 
     return params, state
 
