@@ -1,65 +1,21 @@
 from functools import partial
-from typing import List
 
 import jax
-import jax.numpy as jnp
 import optax
 from flax import linen as nn
-from flaxmodels.vgg import VGG16
 
-from zdc.layers import Sampling, UpSample, Flatten
-from zdc.utils.data import load, vgg_preprocess
+from zdc.architectures.conv import Conv, Encoder, Decoder
+from zdc.layers import Sampling
+from zdc.models.gan.vgg_discriminator import Discriminator
+from zdc.utils.data import load
+from zdc.utils.grad import grad_norm
 from zdc.utils.losses import kl_loss, mse_loss, perceptual_loss
 from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
-gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.92, b2=0.82), peak_value=1.3e-4)
-disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.56, b2=0.57), peak_value=7.2e-6)
-
-
-class BinaryClassifier(nn.Module):
-    channels: int = None
-    kernel_size_in: int = None
-    kernel_size_out: int = None
-    
-    @nn.compact
-    def __call__(self, x):
-        if self.channels is not None:
-            x = nn.Conv(
-                features=self.channels,
-                kernel_size=(self.kernel_size_in, self.kernel_size_in),
-                strides=(self.kernel_size_in, self.kernel_size_in),
-                padding='VALID',
-                dtype=jnp.bfloat16,
-                kernel_init=nn.initializers.zeros
-            )(x)
-            x = nn.relu(x)
-
-        x = nn.Conv(
-            features=1,
-            kernel_size=(self.kernel_size_out, self.kernel_size_out),
-            strides=(self.kernel_size_out, self.kernel_size_out),
-            padding='VALID',
-            dtype=jnp.bfloat16,
-            kernel_init=nn.initializers.zeros
-        )(x)
-        x = Flatten()(x)
-
-        return x
-
-
-class Discriminator(nn.Module):
-    @nn.compact
-    def __call__(self, x):
-        x = vgg_preprocess(x)
-        out = VGG16(output='activations', pretrained='imagenet', include_head=False, dtype=jnp.bfloat16)(x)
-        bc1 = BinaryClassifier(channels=32, kernel_size_in=4, kernel_size_out=4)(out['relu1_2'])
-        bc2 = BinaryClassifier(channels=64, kernel_size_in=4, kernel_size_out=2)(out['relu2_2'])
-        bc3 = BinaryClassifier(channels=128, kernel_size_in=2, kernel_size_out=2)(out['relu3_3'])
-        bc4 = BinaryClassifier(kernel_size_out=2)(out['relu4_3'])
-        bc5 = BinaryClassifier(kernel_size_out=1)(out['relu5_3'])
-        return (bc1 + bc2 + bc3 + bc4 + bc5).mean(axis=-1).astype(jnp.float32)
+gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.86, b2=0.78), peak_value=1e-3)
+disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.69, b2=0.76), peak_value=1.4e-6)
 
 
 class VAE(nn.Module):
@@ -87,138 +43,6 @@ class VAE(nn.Module):
         return self.decode(z)
 
 
-class Encoder(nn.Module):
-    channels: int
-    channel_multipliers: List[int]
-    n_resnet_blocks: int
-    n_heads: int
-
-    @nn.compact
-    def __call__(self, img):
-        x = Conv(self.channels, kernel_size=3)(img)
-
-        for i, multiplier in enumerate(self.channel_multipliers):
-            channels = self.channels * multiplier
-            for _ in range(self.n_resnet_blocks):
-                x = ResidualBlock(channels)(x)
-            if i != len(self.channel_multipliers) - 1:
-                x = Conv(channels, kernel_size=3, strides=2)(x)
-
-        x = ResidualBlock(channels)(x)
-        x = AttentionBlock(channels, self.n_heads)(x)
-        x = ResidualBlock(channels)(x)
-
-        x = LayerNormF32()(x)
-        x = nn.swish(x)
-
-        return x
-
-
-class Decoder(nn.Module):
-    channels: int
-    channel_multipliers: List[int]
-    n_resnet_blocks: int
-    n_heads: int
-
-    @nn.compact
-    def __call__(self, z):
-        channels = self.channels * self.channel_multipliers[-1]
-        x = Conv(channels, kernel_size=3)(z)
-
-        x = ResidualBlock(channels)(x)
-        x = AttentionBlock(channels, self.n_heads)(x)
-        x = ResidualBlock(channels)(x)
-
-        for i, multiplier in enumerate(self.channel_multipliers[::-1]):
-            channels = self.channels * multiplier
-            for _ in range(self.n_resnet_blocks):
-                x = ResidualBlock(channels)(x)
-            if i != 0:
-                x = UpSample()(x)
-                x = Conv(channels, kernel_size=3)(x)
-
-        x = LayerNormF32()(x)
-        x = nn.swish(x)
-        x = Conv(1, kernel_size=1)(x)
-        x = nn.relu(x)
-
-        return x
-
-
-class AttentionBlock(nn.Module):
-    channels: int
-    n_heads: int
-
-    @nn.compact
-    def __call__(self, x):
-        residual = x
-
-        x = LayerNormF32()(x)
-        x = nn.MultiHeadDotProductAttention(
-            num_heads=self.n_heads,
-            qkv_features=self.channels,
-            dtype=jnp.bfloat16,
-            out_kernel_init=nn.initializers.normal(0.2 / self.channels ** 0.5),
-            use_bias=False
-        )(x)
-        x = x + residual
-
-        return x
-
-
-class ResidualBlock(nn.Module):
-    channels: int
-
-    @nn.compact
-    def __call__(self, x):
-        residual = x
-
-        x = LayerNormF32()(x)
-        x = nn.swish(x)
-        x = Conv(self.channels, kernel_size=3)(x)
-
-        x = LayerNormF32()(x)
-        x = nn.swish(x)
-        x = Conv(self.channels, kernel_size=3, init_std=0.0001 / self.channels)(x)
-
-        if residual.shape[-1] != self.channels:
-            residual = Conv(self.channels, kernel_size=1)(residual)
-
-        return x + residual
-
-
-class LayerNormF32(nn.Module):
-    @nn.compact
-    def __call__(self, x):
-        x = x.astype(jnp.float32)
-        x = nn.LayerNorm(epsilon=1e-6)(x)
-        return x.astype(x.dtype)
-
-
-class Conv(nn.Module):
-    channels: int
-    kernel_size: int
-    strides: int = 1
-    init_std: float = None
-
-    @nn.compact
-    def __call__(self, x):
-        if self.init_std is not None:
-            init_std = self.init_std
-        else:
-            init_std = 1.0 / (self.channels * self.kernel_size ** 2)
-
-        return nn.Conv(
-            features=self.channels,
-            kernel_size=(self.kernel_size, self.kernel_size),
-            strides=(self.strides, self.strides),
-            padding='SAME',
-            use_bias=False,
-            dtype=jnp.bfloat16,
-            kernel_init=nn.initializers.normal(init_std, dtype=jnp.float32)
-        )(x)
-
-
 def disc_loss_fn(disc_params, disc_state, gen_params, gen_state, key, *x, gen_model, disc_model):
     gen_key, disc_real_key, disc_fake_key = jax.random.split(key, 3)
     img, rand_img = x
@@ -236,23 +60,8 @@ def disc_loss_fn(disc_params, disc_state, gen_params, gen_state, key, *x, gen_mo
     return loss, (disc_state, loss, real_logits, fake_logits)
 
 
-@jax.custom_vjp
-def grad_norm(x, weight):
-    return x
-
-def grad_norm_fwd(x, weight):
-    return x, weight
-
-def grad_norm_bwd(weight, g):
-    gn = optax.tree_utils.tree_l2_norm(g)
-    g = weight * g / (gn + 1e-8)
-    return g, None
-
-grad_norm.defvjp(grad_norm_fwd, grad_norm_bwd)
-
-
 def gen_loss_fn(gen_params, gen_state, disc_params, disc_state, key, *x, gen_model, disc_model, lpips_fn):
-    gen_key, disc_key = jax.random.split(key,)
+    gen_key, disc_key = jax.random.split(key)
     img, *_ = x
 
     (generated, z_mean, z_log_var), gen_state = forward(gen_model, gen_params, gen_state, gen_key, img)

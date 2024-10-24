@@ -4,7 +4,7 @@ import optax
 from lpips_j.lpips import LPIPS
 
 from zdc.models import RESPONSE_SHAPE
-from zdc.utils.data import vgg_preprocess
+from zdc.models.gan.vgg_discriminator import vgg_preprocess
 from zdc.utils.wasserstein import wasserstein_channels
 
 

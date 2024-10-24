@@ -65,7 +65,3 @@ def batches(*x, batch_size, shuffle_key=None):
 
     for i in range(0, n, batch_size):
         yield tuple(x_i[i:i + batch_size] for x_i in x)
-
-
-def vgg_preprocess(x, max_val=6.4):
-    return 2 * (x / max_val) - 1
