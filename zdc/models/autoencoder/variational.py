@@ -14,13 +14,8 @@ from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule,
 from zdc.utils.train import train_loop
 
 
-gen_optimizer = opt_with_cosine_schedule(
-    optimizer=partial(optax.adam),
-    peak_value=1e-5,
-    epochs=50,
-    batch_size=256
-)
-disc_optimizer = optax.adam(2e-4)
+gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.92, b2=0.82), peak_value=1.3e-4)
+disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.56, b2=0.57), peak_value=7.2e-6)
 
 
 class BinaryClassifier(nn.Module):
@@ -71,8 +66,8 @@ class VAE(nn.Module):
     channels: int = 4
     z_channels: int = 4
     channel_multipliers: tuple = (2, 3, 4)
-    n_heads: int = 2
     n_resnet_blocks: int = 2
+    n_heads: int = 2
 
     @nn.compact
     def __call__(self, img):
@@ -80,13 +75,13 @@ class VAE(nn.Module):
         return self.decode(z), z_mean, z_log_var
 
     def encode(self, img):
-        z = Encoder(self.channels, self.channel_multipliers, self.n_heads, self.n_resnet_blocks)(img)
+        z = Encoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)(img)
         z_mean = Conv(self.z_channels, kernel_size=1)(z)
         z_log_var = Conv(self.z_channels, kernel_size=1)(z)
         return Sampling()(z_mean, z_log_var), z_mean, z_log_var
 
     def decode(self, z):
-        return Decoder(self.channels, self.channel_multipliers, self.n_heads, self.n_resnet_blocks)(z)
+        return Decoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)(z)
 
     def gen(self, z):
         return self.decode(z)
@@ -95,8 +90,8 @@ class VAE(nn.Module):
 class Encoder(nn.Module):
     channels: int
     channel_multipliers: List[int]
-    n_heads: int
     n_resnet_blocks: int
+    n_heads: int
 
     @nn.compact
     def __call__(self, img):
@@ -152,7 +147,7 @@ class Decoder(nn.Module):
 
 class AttentionBlock(nn.Module):
     channels: int
-    n_heads: int = 4
+    n_heads: int
 
     @nn.compact
     def __call__(self, x):
@@ -300,7 +295,7 @@ if __name__ == '__main__':
         disc_optimizer=disc_optimizer,
         gen_optimizer=gen_optimizer,
         disc_loss_fn=partial(disc_loss_fn, model=model),
-        gen_loss_fn=partial(gen_loss_fn, model=model, loss_weights=(1.0, 0.7, 1.0, 1.0), lpips_fn=perceptual_loss())
+        gen_loss_fn=partial(gen_loss_fn, model=model, loss_weights=(1.0, 0.014, 0.06, 5.4), lpips_fn=perceptual_loss())
     ))
     generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[0], method='gen')[0])
     train_metrics = ('disc_loss', 'real_logits', 'fake_logits', 'gen_loss', 'l2_loss', 'kl_loss', 'adv_loss', 'perc_loss', 'disc_gn', 'gen_gn')
