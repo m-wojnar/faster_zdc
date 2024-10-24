@@ -7,17 +7,17 @@ import numpy as np
 import optax
 import optuna
 
-from zdc.models.autoencoder.variational import Model, disc_loss_fn, gen_loss_fn, step_fn
+from zdc.models.autoencoder.variational import VAE, Discriminator, disc_loss_fn, gen_loss_fn, step_fn
 from zdc.utils.data import load, batches
 from zdc.utils.losses import perceptual_loss
-from zdc.utils.nn import opt_with_cosine_schedule, init, forward, get_layers
+from zdc.utils.nn import opt_with_cosine_schedule, init, forward
 from zdc.utils.train import default_eval_fn
 
 
 def suggest_optimizer(trial, epochs, batch_size, prefix):
-    learning_rate = trial.suggest_float(f'{prefix}_learning_rate', 5e-6, 5e-3, log=True)
-    beta_1 = trial.suggest_float(f'{prefix}_beta_1', 0.5, 1.)
-    beta_2 = trial.suggest_float(f'{prefix}_beta_2', 0.5, 1.)
+    learning_rate = trial.suggest_float(f'{prefix}_learning_rate', 1e-6, 1e-2, log=True)
+    beta_1 = trial.suggest_float(f'{prefix}_beta_1', 0.4, 1.)
+    beta_2 = trial.suggest_float(f'{prefix}_beta_2', 0.4, 1.)
     optimizer = partial(optax.adam, b1=beta_1, b2=beta_2)
 
     if trial.suggest_categorical(f'{prefix}_use_cosine_decay', [True, False]):
@@ -30,27 +30,29 @@ def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=
     gen_optimizer = suggest_optimizer(trial, epochs, batch_size, 'gen')
     disc_optimizer = suggest_optimizer(trial, epochs, batch_size, 'disc')
 
-    kl_weight = trial.suggest_float('kl_weight', 0.01, 1.0, log=True)
-    adv_weight = trial.suggest_float('adv_weight', 0.001, 10.0, log=True)
-    perc_weight = trial.suggest_float('perc_weight', 0.001, 10.0, log=True)
-
     seed = np.random.randint(0, 2**32 - 1)
-    init_key, train_key, val_key, shuffle_key = jax.random.split(jax.random.PRNGKey(seed), 4)
+    gen_init_key, disc_init_key, train_key, val_key, shuffle_key = jax.random.split(jax.random.PRNGKey(seed), 5)
 
-    model = Model()
-    params, state = init(model, init_key, r_train[:5], r_train[:5])
-    disc_opt_state = disc_optimizer.init(get_layers(params, 'discriminator'))
-    gen_opt_state = gen_optimizer.init(get_layers(params, 'generator'))
-    opt_state = (disc_opt_state, gen_opt_state)
+    gen_model = VAE()
+    gen_params, gen_state = init(gen_model, gen_init_key, r_train[:5])
+    gen_opt_state = gen_optimizer.init(gen_params)
+
+    disc_model = Discriminator()
+    disc_params, disc_state = init(disc_model, disc_init_key, r_train[:5])
+    disc_opt_state = disc_optimizer.init(disc_params)
+
+    params = (gen_params, disc_params)
+    state = (gen_state, disc_state)
+    opt_state = (gen_opt_state, disc_opt_state)
 
     train_fn = jax.jit(partial(
         step_fn,
         disc_optimizer=disc_optimizer,
         gen_optimizer=gen_optimizer,
-        disc_loss_fn=partial(disc_loss_fn, model=model),
-        gen_loss_fn=partial(gen_loss_fn, model=model, loss_weights=(1.0, kl_weight, adv_weight, perc_weight), lpips_fn=perceptual_loss())
+        disc_loss_fn=partial(disc_loss_fn, gen_model=gen_model, disc_model=disc_model),
+        gen_loss_fn=partial(gen_loss_fn, gen_model=gen_model, disc_model=disc_model, lpips_fn=perceptual_loss())
     ))
-    generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[0], method='gen')[0])
+    generate_fn = jax.jit(lambda params, state, key, *x: forward(gen_model, params[0], state[0], key, x[0])[0][0])
 
     for _ in range(epochs):
         shuffle_key, shuffle_train_subkey = jax.random.split(shuffle_key)
@@ -77,7 +79,7 @@ if __name__ == "__main__":
     args = ArgumentParser()
     args.add_argument('--database', required=True, type=str)
     args.add_argument('--name', required=True, type=str)
-    args.add_argument('--trials', required=False, type=int, default=200)
+    args.add_argument('--trials', type=int, default=200)
     args = args.parse_args()
 
     r_train, r_val, _, p_train, p_val, _ = load()

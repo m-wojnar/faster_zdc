@@ -10,7 +10,7 @@ from flaxmodels.vgg import VGG16
 from zdc.layers import Sampling, UpSample, Flatten
 from zdc.utils.data import load, vgg_preprocess
 from zdc.utils.losses import kl_loss, mse_loss, perceptual_loss
-from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule, get_layers
+from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
@@ -59,7 +59,7 @@ class Discriminator(nn.Module):
         bc3 = BinaryClassifier(channels=128, kernel_size_in=2, kernel_size_out=2)(out['relu3_3'])
         bc4 = BinaryClassifier(kernel_size_out=2)(out['relu4_3'])
         bc5 = BinaryClassifier(kernel_size_out=1)(out['relu5_3'])
-        return (bc1 + bc2 + bc3 + bc4 + bc5).mean(axis=-1)
+        return (bc1 + bc2 + bc3 + bc4 + bc5).mean(axis=-1).astype(jnp.float32)
 
 
 class VAE(nn.Module):
@@ -219,23 +219,13 @@ class Conv(nn.Module):
         )(x)
 
 
-class Model(nn.Module):
-    def setup(self):
-        self.discriminator = Discriminator()
-        self.generator = VAE()
+def disc_loss_fn(disc_params, disc_state, gen_params, gen_state, key, *x, gen_model, disc_model):
+    gen_key, disc_real_key, disc_fake_key = jax.random.split(key, 3)
+    img, rand_img = x
 
-    def __call__(self, img, rand_img):
-        reconstructed, z_mean, z_log_var = self.generator(img)
-        real_output = self.discriminator(rand_img).astype(jnp.float32)
-        fake_output = self.discriminator(reconstructed).astype(jnp.float32)
-        return reconstructed, z_mean, z_log_var, real_output, fake_output
-
-    def gen(self, img):
-        return self.generator(img)[0]
-
-
-def disc_loss_fn(disc_params, gen_params, state, forward_key, *x, model):
-    (*_, real_output, fake_output), state = forward(model, disc_params | gen_params, state, forward_key, *x)
+    (generated, *_), _ = forward(gen_model, gen_params, gen_state, gen_key, img)
+    real_output, disc_state = forward(disc_model, disc_params, disc_state, disc_real_key, rand_img)
+    fake_output, disc_state = forward(disc_model, disc_params, disc_state, disc_fake_key, generated)
 
     real = nn.relu(1 - real_output).mean()
     fake = nn.relu(1 + fake_output).mean()
@@ -243,64 +233,96 @@ def disc_loss_fn(disc_params, gen_params, state, forward_key, *x, model):
     fake_logits = fake_output.mean()
 
     loss = real + fake
-    return loss, (state, loss, real_logits, fake_logits)
+    return loss, (disc_state, loss, real_logits, fake_logits)
 
 
-def gen_loss_fn(gen_params, disc_params, state, forward_key, *x, model, loss_weights, lpips_fn):
-    (generated, z_mean, z_log_var, _, fake_output), state = forward(model, gen_params | disc_params, state, forward_key, *x)
+@jax.custom_vjp
+def grad_norm(x, weight):
+    return x
+
+def grad_norm_fwd(x, weight):
+    return x, weight
+
+def grad_norm_bwd(weight, g):
+    gn = optax.tree_utils.tree_l2_norm(g)
+    g = weight * g / (gn + 1e-8)
+    return g, None
+
+grad_norm.defvjp(grad_norm_fwd, grad_norm_bwd)
+
+
+def gen_loss_fn(gen_params, gen_state, disc_params, disc_state, key, *x, gen_model, disc_model, lpips_fn):
+    gen_key, disc_key = jax.random.split(key,)
     img, *_ = x
 
-    l2 = mse_loss(img, generated)
-    kl = kl_loss(z_mean, z_log_var)
-    perc = lpips_fn(img, generated)
-    adv = -fake_output.mean()
+    (generated, z_mean, z_log_var), gen_state = forward(gen_model, gen_params, gen_state, gen_key, img)
 
-    l2_weight, kl_weight, adv_weight, perc_weight = loss_weights
-    loss = l2_weight * l2 + kl_weight * kl + adv_weight * adv + perc_weight * perc
-    return loss, (state, loss, l2, kl, adv, perc)
+    def vae_loss(generated, img, z_mean, z_log_var):
+        generated = grad_norm(generated, 0.1)
+        l2 = mse_loss(img, generated)
+        kl = kl_loss(z_mean, z_log_var)
+        return l2 + kl
+
+    def perc_loss(generated, img):
+        generated = grad_norm(generated, 1.0)
+        return lpips_fn(img, generated)
+
+    def adv_loss(generated):
+        generated = grad_norm(generated, 1.0)
+        fake_output, _ = forward(disc_model, disc_params, disc_state, disc_key, generated)
+        return -fake_output.mean()
+
+    vae = vae_loss(generated, img, z_mean, z_log_var)
+    perc = perc_loss(generated, img)
+    adv = adv_loss(generated)
+    loss = vae + perc + adv
+
+    return loss, (gen_state, loss, vae, adv, perc)
 
 
 def step_fn(params, carry, opt_state, disc_optimizer, gen_optimizer, disc_loss_fn, gen_loss_fn):
-    (state, key, img, _), (disc_opt_state, gen_opt_state) = carry, opt_state
-    forward_key, data_key = jax.random.split(key)
+    gen_params, disc_params = params
+    (gen_state, disc_state), key, img, *_ = carry
+    gen_opt_state, disc_opt_state = opt_state
+    gen_key, disc_key, data_key = jax.random.split(key, 3)
+    rand_img = jax.random.permutation(data_key, img)
 
-    disc_params, gen_params = get_layers(params, 'discriminator'), get_layers(params, 'generator')
-    permutation = jax.random.permutation(data_key, img.shape[0])
-    rand_img = img[permutation]
-
-    disc_params_new, disc_opt_state, disc_grads, (_, *disc_losses) = gradient_step(
-        disc_params, (gen_params, state, forward_key, img, rand_img), disc_opt_state, disc_optimizer, disc_loss_fn)
-    gen_params_new, gen_opt_state, gen_grads, (state, *gen_losses) = gradient_step(
-        gen_params, (disc_params, state, forward_key, img, rand_img), gen_opt_state, gen_optimizer, gen_loss_fn)
+    disc_params_new, disc_opt_state, disc_grads, (disc_state_new, *disc_losses) = gradient_step(
+        disc_params, (disc_state, gen_params, gen_state, disc_key, img, rand_img), disc_opt_state, disc_optimizer, disc_loss_fn)
+    gen_params_new, gen_opt_state, gen_grads, (gen_state_new, *gen_losses) = gradient_step(
+        gen_params, (gen_state, disc_params, disc_state, gen_key, img, rand_img), gen_opt_state, gen_optimizer, gen_loss_fn)
 
     disc_gn = optax.tree_utils.tree_l2_norm(disc_grads)
     gen_gn = optax.tree_utils.tree_l2_norm(gen_grads)
 
-    return disc_params_new | gen_params_new, (disc_opt_state, gen_opt_state), (state, *disc_losses, *gen_losses, disc_gn, gen_gn)
+    return (gen_params_new, disc_params_new), (gen_opt_state, disc_opt_state), ((gen_state_new, disc_state_new), *disc_losses, *gen_losses, disc_gn, gen_gn)
 
 
 if __name__ == '__main__':
     key = jax.random.PRNGKey(42)
-    init_key, train_key = jax.random.split(key)
+    gen_init_key, disc_init_key, train_key = jax.random.split(key, 3)
 
     r_train, r_val, r_test, p_train, p_val, p_test = load()
 
-    model = Model()
-    params, state = init(model, init_key, r_train[:5], r_train[:5], print_summary=True)
-    disc_opt_state = disc_optimizer.init(get_layers(params, 'discriminator'))
-    gen_opt_state = gen_optimizer.init(get_layers(params, 'generator'))
+    gen_model = VAE()
+    gen_params, gen_state = init(gen_model, gen_init_key, r_train[:5], print_summary=True)
+    gen_opt_state = gen_optimizer.init(gen_params)
+
+    disc_model = Discriminator()
+    disc_params, disc_state = init(disc_model, disc_init_key, r_train[:5], print_summary=True)
+    disc_opt_state = disc_optimizer.init(disc_params)
 
     train_fn = jax.jit(partial(
         step_fn,
         disc_optimizer=disc_optimizer,
         gen_optimizer=gen_optimizer,
-        disc_loss_fn=partial(disc_loss_fn, model=model),
-        gen_loss_fn=partial(gen_loss_fn, model=model, loss_weights=(1.0, 0.014, 0.06, 5.4), lpips_fn=perceptual_loss())
+        disc_loss_fn=partial(disc_loss_fn, gen_model=gen_model, disc_model=disc_model),
+        gen_loss_fn=partial(gen_loss_fn, gen_model=gen_model, disc_model=disc_model, lpips_fn=perceptual_loss())
     ))
-    generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[0], method='gen')[0])
-    train_metrics = ('disc_loss', 'real_logits', 'fake_logits', 'gen_loss', 'l2_loss', 'kl_loss', 'adv_loss', 'perc_loss', 'disc_gn', 'gen_gn')
+    generate_fn = jax.jit(lambda params, state, key, *x: forward(gen_model, params[0], state[0], key, x[0])[0][0])
+    train_metrics = ('disc_loss', 'real_logits', 'fake_logits', 'gen_loss', 'vae_loss', 'adv_loss', 'perc_loss', 'disc_gn', 'gen_gn')
 
     train_loop(
-        'variational_gan', train_fn, None, generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
-        train_metrics, None, params, state, (disc_opt_state, gen_opt_state), train_key, epochs=50
+        'variational', train_fn, None, generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
+        train_metrics, None, (gen_params, disc_params), (gen_state, disc_state), (gen_opt_state, disc_opt_state), train_key
     )
