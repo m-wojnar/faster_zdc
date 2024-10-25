@@ -14,8 +14,8 @@ from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
-gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.86, b2=0.78), peak_value=1e-3)
-disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.69, b2=0.76), peak_value=1.4e-6)
+gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.9, b2=0.72), peak_value=2.7e-3)
+disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.9, b2=0.64), peak_value=1.5e-6)
 
 
 class VAE(nn.Module):
@@ -108,7 +108,7 @@ def step_fn(params, carry, opt_state, disc_optimizer, gen_optimizer, disc_loss_f
 
 
 if __name__ == '__main__':
-    key = jax.random.PRNGKey(42)
+    key = jax.random.PRNGKey(95)
     gen_init_key, disc_init_key, train_key = jax.random.split(key, 3)
 
     r_train, r_val, r_test, p_train, p_val, p_test = load()

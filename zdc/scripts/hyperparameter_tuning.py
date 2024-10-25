@@ -3,7 +3,6 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import optax
 import optuna
 
@@ -30,8 +29,8 @@ def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=
     gen_optimizer = suggest_optimizer(trial, epochs, batch_size, 'gen')
     disc_optimizer = suggest_optimizer(trial, epochs, batch_size, 'disc')
 
-    seed = np.random.randint(0, 2**32 - 1)
-    gen_init_key, disc_init_key, train_key, val_key, shuffle_key = jax.random.split(jax.random.PRNGKey(seed), 5)
+    gen_init_key, disc_init_key, train_key = jax.random.split(jax.random.PRNGKey(95), 3)
+    train_key, val_key, _, shuffle_key, _ = jax.random.split(train_key, 5)
 
     gen_model = VAE()
     gen_params, gen_state = init(gen_model, gen_init_key, r_train[:5])
@@ -55,7 +54,7 @@ def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=
     generate_fn = jax.jit(lambda params, state, key, *x: forward(gen_model, params[0], state[0], key, x[0])[0][0])
 
     for _ in range(epochs):
-        shuffle_key, shuffle_train_subkey = jax.random.split(shuffle_key)
+        shuffle_key, shuffle_train_subkey, _ = jax.random.split(shuffle_key, 3)
 
         for batch in batches(*train_dataset, batch_size=batch_size, shuffle_key=shuffle_train_subkey):
             train_key, subkey = jax.random.split(train_key)
