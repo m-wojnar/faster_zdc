@@ -29,7 +29,7 @@ def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=
     gen_optimizer = suggest_optimizer(trial, epochs, batch_size, 'gen')
     disc_optimizer = suggest_optimizer(trial, epochs, batch_size, 'disc')
 
-    gen_init_key, disc_init_key, train_key = jax.random.split(jax.random.PRNGKey(95), 3)
+    gen_init_key, disc_init_key, train_key = jax.random.split(jax.random.PRNGKey(72), 3)
     train_key, val_key, _, shuffle_key, _ = jax.random.split(train_key, 5)
 
     gen_model = VAE()

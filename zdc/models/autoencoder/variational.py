@@ -108,7 +108,7 @@ def step_fn(params, carry, opt_state, disc_optimizer, gen_optimizer, disc_loss_f
 
 
 if __name__ == '__main__':
-    key = jax.random.PRNGKey(95)
+    key = jax.random.PRNGKey(72)
     gen_init_key, disc_init_key, train_key = jax.random.split(key, 3)
 
     r_train, r_val, r_test, p_train, p_val, p_test = load()
