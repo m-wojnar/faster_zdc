@@ -22,7 +22,7 @@ dependencies = [
   "optax~=0.2.3",
   "seaborn~=0.13.2",
   "scikit-learn~=1.5.2",
-  "torch~=2.4.1",
+  "torch~=2.5.0",
   "tqdm~=4.66.5",
   "wandb~=0.18.3"
 ]

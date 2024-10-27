@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import optax
 import optuna
 
-from zdc.models.autoencoder.variational import VAE, Discriminator, disc_loss_fn, gen_loss_fn, step_fn
+from zdc.models.quantization.vq_gan import VQVAE, Discriminator, disc_loss_fn, gen_loss_fn, step_fn
 from zdc.utils.data import load, batches
 from zdc.utils.losses import perceptual_loss
 from zdc.utils.nn import opt_with_cosine_schedule, init, forward
@@ -32,7 +32,7 @@ def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=
     gen_init_key, disc_init_key, train_key = jax.random.split(jax.random.PRNGKey(72), 3)
     train_key, val_key, _, shuffle_key, _ = jax.random.split(train_key, 5)
 
-    gen_model = VAE()
+    gen_model = VQVAE()
     gen_params, gen_state = init(gen_model, gen_init_key, r_train[:5])
     gen_opt_state = gen_optimizer.init(gen_params)
 

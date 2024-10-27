@@ -26,7 +26,7 @@ class VQVAE(nn.Module):
     channel_multipliers: tuple = (2, 3, 4)
     n_resnet_blocks: int = 2
     n_heads: int = 2
-    num_embeddings: int = 2048
+    num_embeddings: int = 512
     normalize: bool = True
 
     @nn.compact
