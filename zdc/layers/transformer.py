@@ -11,8 +11,8 @@ class FeedForwardBlock(nn.Module):
         out_dim = x.shape[-1]
         x = nn.Dense(self.hidden_dim, use_bias=False, dtype=jnp.bfloat16)(x)
         x = nn.gelu(x)
-        x = nn.Dropout(rate=self.drop_rate, use_bias=False, dtype=jnp.bfloat16)(x, deterministic=not training)
-        x = nn.Dense(out_dim)(x)
+        x = nn.Dropout(rate=self.drop_rate)(x, deterministic=not training)
+        x = nn.Dense(out_dim, use_bias=False, dtype=jnp.bfloat16)(x)
         x = nn.Dropout(rate=self.drop_rate)(x, deterministic=not training)
         return x
 

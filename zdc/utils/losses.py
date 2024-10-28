@@ -25,7 +25,7 @@ def wasserstein_loss(ch_true, ch_pred):
 
 
 def xentropy_loss(x, y):
-    return optax.sigmoid_binary_cross_entropy(x, y).mean()
+    return optax.softmax_cross_entropy_with_integer_labels(x, y).mean()
 
 
 def perceptual_loss():
