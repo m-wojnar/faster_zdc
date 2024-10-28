@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 from flax import linen as nn
 
 
@@ -8,9 +9,9 @@ class FeedForwardBlock(nn.Module):
     @nn.compact
     def __call__(self, x, training=True):
         out_dim = x.shape[-1]
-        x = nn.Dense(self.hidden_dim)(x)
+        x = nn.Dense(self.hidden_dim, use_bias=False, dtype=jnp.bfloat16)(x)
         x = nn.gelu(x)
-        x = nn.Dropout(rate=self.drop_rate)(x, deterministic=not training)
+        x = nn.Dropout(rate=self.drop_rate, use_bias=False, dtype=jnp.bfloat16)(x, deterministic=not training)
         x = nn.Dense(out_dim)(x)
         x = nn.Dropout(rate=self.drop_rate)(x, deterministic=not training)
         return x
@@ -25,12 +26,18 @@ class TransformerBlock(nn.Module):
     @nn.compact
     def __call__(self, x, mask=None, training=True):
         residual = x
-        x = nn.LayerNorm()(x)
-        x = nn.MultiHeadDotProductAttention(num_heads=self.num_heads, qkv_features=x.shape[-1], decode=self.decode)(x, mask=mask)
+        x = nn.LayerNorm(use_bias=False, dtype=jnp.bfloat16)(x)
+        x = nn.MultiHeadDotProductAttention(
+            num_heads=self.num_heads,
+            qkv_features=x.shape[-1],
+            decode=self.decode,
+            use_bias=False,
+            dtype=jnp.bfloat16
+        )(x, mask=mask)
         x = x + residual
 
         residual = x
-        x = nn.LayerNorm()(x)
+        x = nn.LayerNorm(use_bias=False, dtype=jnp.bfloat16)(x)
         x = FeedForwardBlock(self.hidden_dim, self.drop_rate)(x, training=training)
         x = x + residual
 

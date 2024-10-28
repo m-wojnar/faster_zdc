@@ -52,7 +52,7 @@ def train_loop(
 
         for batch in batches(*train_dataset, batch_size=batch_size, shuffle_key=shuffle_train_subkey):
             train_key, subkey = jax.random.split(train_key)
-            params, opt_state, (state, *losses) = train_fn(params, (state, subkey, *batch), opt_state)
+            params, opt_state, _, (state, *losses) = train_fn(params, (state, subkey, *batch), opt_state)
             metrics.add(dict(zip(train_metrics, losses)), 'train')
 
         metrics.log(epoch)
