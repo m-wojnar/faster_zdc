@@ -58,24 +58,17 @@ class VQVAE(nn.Module):
     num_embeddings: int = 512
     normalize: bool = True
 
-    @nn.compact
+    def setup(self) -> None:
+        self.encoder = Encoder(self.hidden_dim, self.latent_dim)
+        self.quantizer = VectorQuantizer(self.num_embeddings, self.hidden_dim, self.proj_dim, self.normalize)
+        self.decoder = Decoder(self.hidden_dim, self.latent_dim)
+
     def __call__(self, cond):
-        encoded, discrete, quantized = self.encode(cond)
-        quantized_sg = encoded + jax.lax.stop_gradient(quantized - encoded)
-        reconstructed = self.decode(quantized_sg)
-        return reconstructed, encoded, discrete, quantized
-
-    def encode(self, cond):
-        encoded = Encoder(self.hidden_dim, self.latent_dim)(cond)
-        discrete, quantized = VectorQuantizer(self.num_embeddings, self.hidden_dim, self.proj_dim, self.normalize)(encoded)
+        encoded = self.encoder(cond)
+        discrete, quantized = self.quantizer(encoded)
         encoded = VectorQuantizer.l2_normalize(encoded) if self.normalize else encoded
-        return encoded, discrete, quantized
-
-    def decode(self, quantized):
-        return Decoder(self.hidden_dim, self.latent_dim)(quantized)
-
-    def gen(self, quantized):
-        return self.decode(quantized)
+        quantized_sg = encoded + jax.lax.stop_gradient(quantized - encoded)
+        return self.decoder(quantized_sg), encoded, discrete, quantized
 
 
 def loss_fn(params, state, key, img, cond, model):

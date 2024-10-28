@@ -29,25 +29,26 @@ class VQVAE(nn.Module):
     num_embeddings: int = 512
     normalize: bool = True
 
-    @nn.compact
+    def setup(self) -> None:
+        self.encoder = Encoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)
+        self.emb = Conv(self.emb_channels, kernel_size=1)
+        self.quantizer = VectorQuantizerEMA(self.num_embeddings, self.emb_channels, normalize=self.normalize)
+        self.decoder = Decoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)
+
     def __call__(self, img):
-        encoded, discrete, quantized = self.encode(img)
-        quantized_sg = encoded + jax.lax.stop_gradient(quantized - encoded)
-        reconstructed = self.decode(quantized_sg)
-        return reconstructed, encoded, discrete, quantized
-
-    def encode(self, img):
-        z = Encoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)(img)
-        encoded = Conv(self.emb_channels, kernel_size=1)(z)
-        discrete, quantized = VectorQuantizerEMA(self.num_embeddings, self.emb_channels, normalize=self.normalize)(encoded)
+        z = self.encoder(img)
+        encoded = self.emb(z)
+        discrete, quantized = self.quantizer(encoded)
         encoded = VectorQuantizerEMA.l2_normalize(encoded) if self.normalize else encoded
-        return encoded, discrete, quantized
+        quantized_sg = encoded + jax.lax.stop_gradient(quantized - encoded)
+        return self.decoder(quantized_sg), encoded, discrete, quantized
 
-    def decode(self, quantized):
-        return Decoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)(quantized)
-
-    def gen(self, quantized):
-        return self.decode(quantized)
+    def gen(self, discrete):
+        discrete = nn.one_hot(discrete, self.num_embeddings)
+        quantized = self.quantizer.quantize(discrete)
+        quantized = quantized.reshape(-1, 11, 11, self.emb_channels)
+        quantized = VectorQuantizerEMA.l2_normalize(quantized) if self.normalize else quantized
+        return self.decoder(quantized)
 
 
 def gen_loss_fn(gen_params, gen_state, disc_params, disc_state, key, *x, gen_model, disc_model, lpips_fn):

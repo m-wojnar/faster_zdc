@@ -58,7 +58,7 @@ def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=
 
         for batch in batches(*train_dataset, batch_size=batch_size, shuffle_key=shuffle_train_subkey):
             train_key, subkey = jax.random.split(train_key)
-            params, opt_state, (state, *losses) = train_fn(params, (state, subkey, *batch), opt_state)
+            params, opt_state, _, (state, *losses) = train_fn(params, (state, subkey, *batch), opt_state)
 
     generated, original = [], []
 

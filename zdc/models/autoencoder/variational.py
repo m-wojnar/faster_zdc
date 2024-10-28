@@ -25,22 +25,22 @@ class VAE(nn.Module):
     n_resnet_blocks: int = 2
     n_heads: int = 2
 
-    @nn.compact
+    def setup(self):
+        self.encoder = Encoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)
+        self.z_mean_conv = Conv(self.z_channels, kernel_size=1)
+        self.z_log_var_conv = Conv(self.z_channels, kernel_size=1)
+        self.sampling = Sampling()
+        self.decoder = Decoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)
+
     def __call__(self, img):
-        z, z_mean, z_log_var = self.encode(img)
-        return self.decode(z), z_mean, z_log_var
-
-    def encode(self, img):
-        z = Encoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)(img)
-        z_mean = Conv(self.z_channels, kernel_size=1)(z)
-        z_log_var = Conv(self.z_channels, kernel_size=1)(z)
-        return Sampling()(z_mean, z_log_var), z_mean, z_log_var
-
-    def decode(self, z):
-        return Decoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)(z)
+        z = self.encoder(img)
+        z_mean = self.z_mean_conv(z)
+        z_log_var = self.z_log_var_conv(z)
+        z = self.sampling(z_mean, z_log_var)
+        return self.decoder(z), z_mean, z_log_var
 
     def gen(self, z):
-        return self.decode(z)
+        return self.decoder(z)
 
 
 def disc_loss_fn(disc_params, disc_state, gen_params, gen_state, key, *x, gen_model, disc_model):
@@ -104,7 +104,7 @@ def step_fn(params, carry, opt_state, disc_optimizer, gen_optimizer, disc_loss_f
     disc_gn = optax.tree_utils.tree_l2_norm(disc_grads)
     gen_gn = optax.tree_utils.tree_l2_norm(gen_grads)
 
-    return (gen_params_new, disc_params_new), (gen_opt_state, disc_opt_state), ((gen_state_new, disc_state_new), *disc_losses, *gen_losses, disc_gn, gen_gn)
+    return (gen_params_new, disc_params_new), (gen_opt_state, disc_opt_state), None, ((gen_state_new, disc_state_new), *disc_losses, *gen_losses, disc_gn, gen_gn)
 
 
 if __name__ == '__main__':
