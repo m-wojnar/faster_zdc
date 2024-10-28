@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import optax
 from flax import linen as nn
 
-from zdc.architectures.conv import Conv, Encoder, Decoder
-from zdc.layers import VectorQuantizerEMA
+from zdc.architectures.conv import Encoder, Decoder
+from zdc.layers import Conv, VectorQuantizerEMA
 from zdc.models.autoencoder.variational import step_fn, disc_loss_fn
 from zdc.models.gan.vgg_discriminator import Discriminator
 from zdc.utils.data import load

@@ -4,8 +4,8 @@ import jax
 import optax
 from flax import linen as nn
 
-from zdc.architectures.conv import Conv, Encoder, Decoder
-from zdc.layers import Sampling
+from zdc.architectures.conv import Encoder, Decoder
+from zdc.layers import Conv, Sampling
 from zdc.models.gan.vgg_discriminator import Discriminator
 from zdc.utils.data import load
 from zdc.utils.grad import grad_norm
