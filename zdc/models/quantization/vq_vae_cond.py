@@ -58,7 +58,7 @@ class VQVAE(nn.Module):
     num_embeddings: int = 512
     normalize: bool = True
 
-    def setup(self) -> None:
+    def setup(self):
         self.encoder = Encoder(self.hidden_dim, self.latent_dim)
         self.quantizer = VectorQuantizer(self.num_embeddings, self.hidden_dim, self.proj_dim, self.normalize)
         self.decoder = Decoder(self.hidden_dim, self.latent_dim)

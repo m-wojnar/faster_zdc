@@ -20,7 +20,7 @@ def init(model, key, *x, print_summary=False):
     state = variables
 
     if print_summary:
-        print(model.tabulate(jax.random.key(0), *x))
+        print(model.tabulate(jax.random.PRNGKey(0), *x))
 
     return params, state
 

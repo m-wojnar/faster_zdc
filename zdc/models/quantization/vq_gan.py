@@ -29,7 +29,7 @@ class VQVAE(nn.Module):
     num_embeddings: int = 512
     normalize: bool = True
 
-    def setup(self) -> None:
+    def setup(self):
         self.encoder = Encoder(self.channels, self.channel_multipliers, self.n_resnet_blocks, self.n_heads)
         self.emb = Conv(self.emb_channels, kernel_size=1)
         self.quantizer = VectorQuantizerEMA(self.num_embeddings, self.emb_channels, normalize=self.normalize)

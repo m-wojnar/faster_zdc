@@ -16,7 +16,7 @@ class Transformer(nn.Module):
     drop_rate: float
     decode: bool
 
-    def setup(self) -> None:
+    def setup(self):
         self.token_emb = nn.Embed(self.vocab_size, self.embed_dim)
         self.cond_emb = nn.Embed(self.vocab_size, self.embed_dim)
         self.pos_emb = nn.Embed(self.max_len, self.embed_dim)

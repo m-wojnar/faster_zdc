@@ -1,3 +1,4 @@
+import os
 from argparse import ArgumentParser
 from functools import partial
 
@@ -9,7 +10,7 @@ import optuna
 from zdc.models.quantization.vq_gan import VQVAE, Discriminator, disc_loss_fn, gen_loss_fn, step_fn
 from zdc.utils.data import load, batches
 from zdc.utils.losses import perceptual_loss
-from zdc.utils.nn import opt_with_cosine_schedule, init, forward
+from zdc.utils.nn import opt_with_cosine_schedule, init, forward, save_model
 from zdc.utils.train import default_eval_fn
 
 
@@ -25,7 +26,22 @@ def suggest_optimizer(trial, epochs, batch_size, prefix):
         return optimizer(learning_rate)
 
 
-def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=256):
+def eval_model(params, state, val_dataset, val_key, batch_size, generate_fn, n_rep):
+    generated, original = [], []
+
+    for batch in batches(*val_dataset, batch_size=batch_size):
+        for _ in range(n_rep):
+            val_key, subkey = jax.random.split(val_key)
+            generated.append(generate_fn(params, state, subkey, *batch))
+            original.append(batch)
+
+    generated, original = jnp.concatenate(generated), (jnp.concatenate(xs) for xs in zip(*original))
+    _, _, val_wasserstein = default_eval_fn(generated, *original)
+
+    return val_wasserstein
+
+
+def objective(trial, train_dataset, val_dataset, name, n_rep=5, epochs=50, batch_size=256):
     gen_optimizer = suggest_optimizer(trial, epochs, batch_size, 'gen')
     disc_optimizer = suggest_optimizer(trial, epochs, batch_size, 'disc')
 
@@ -53,25 +69,18 @@ def objective(trial, train_dataset, val_dataset, n_rep=5, epochs=50, batch_size=
     ))
     generate_fn = jax.jit(lambda params, state, key, *x: forward(gen_model, params[0], state[0], key, x[0])[0][0])
 
-    for _ in range(epochs):
+    for i in range(epochs):
         shuffle_key, shuffle_train_subkey, _ = jax.random.split(shuffle_key, 3)
 
         for batch in batches(*train_dataset, batch_size=batch_size, shuffle_key=shuffle_train_subkey):
             train_key, subkey = jax.random.split(train_key)
             params, opt_state, _, (state, *losses) = train_fn(params, (state, subkey, *batch), opt_state)
 
-    generated, original = [], []
+        if i == 0 and (val := eval_model(params, state, val_dataset, val_key, batch_size, generate_fn, n_rep)) > 80.0:
+            return val
 
-    for batch in batches(*val_dataset, batch_size=batch_size):
-        for _ in range(n_rep):
-            val_key, subkey = jax.random.split(val_key)
-            generated.append(generate_fn(params, state, subkey, *batch))
-            original.append(batch)
-
-    generated, original = jnp.concatenate(generated), (jnp.concatenate(xs) for xs in zip(*original))
-    _, _, val_wasserstein = default_eval_fn(generated, *original)
-
-    return val_wasserstein
+    save_model(params, state, f'checkpoints/{name}/trial_{trial.number}.pkl.lz4')
+    return eval_model(params, state, val_dataset, val_key, batch_size, generate_fn, n_rep)
 
 
 if __name__ == "__main__":
@@ -82,6 +91,7 @@ if __name__ == "__main__":
     args = args.parse_args()
 
     r_train, r_val, _, p_train, p_val, _ = load()
+    os.makedirs(f'checkpoints/{args.name}', exist_ok=True)
 
     study = optuna.create_study(
         storage=args.database,
@@ -92,7 +102,7 @@ if __name__ == "__main__":
     )
 
     study.optimize(
-        partial(objective, train_dataset=(r_train, p_train), val_dataset=(r_val, p_val)),
+        partial(objective, train_dataset=(r_train, p_train), val_dataset=(r_val, p_val), name=args.name),
         n_trials=args.trials,
         gc_after_trial=True
     )
