@@ -43,7 +43,7 @@ def tokenize_fn(key, x, batch_size, model_fn):
 
 
 if __name__ == '__main__':
-    key = jax.random.PRNGKey(42)
+    key = jax.random.PRNGKey(72)
     init_key, r_key, p_key, train_key = jax.random.split(key, 4)
     batch_size = 256
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     c_val, c_test, x_val, x_test, y_val, y_test = jax.tree.map(lambda x: x[:-(x.shape[0] % batch_size)], (c_val, c_test, x_val, x_test, y_val, y_test))
 
-    model = GPT(vocab_size=512, embed_dim=32, seq_len=121, hidden_dim=32, num_heads=2, num_layers=2, drop_rate=0.1)
+    model = GPT(vocab_size=512, embed_dim=64, seq_len=121, max_len=122, hidden_dim=128, num_heads=2, num_layers=2, drop_rate=0.1)
     params, state = init(model, init_key, c_train[:5], x_train[:5], print_summary=True)
     cache = model.init({'params': jax.random.PRNGKey(0)}, c_train[:batch_size], x_train[:batch_size], False)['cache']
     opt_state = optimizer.init(params)

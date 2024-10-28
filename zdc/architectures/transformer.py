@@ -9,6 +9,7 @@ class Transformer(nn.Module):
     vocab_size: int
     embed_dim: int
     seq_len: int
+    max_len: int
     hidden_dim: int
     num_heads: int
     num_layers: int
@@ -18,7 +19,7 @@ class Transformer(nn.Module):
     def setup(self) -> None:
         self.token_emb = nn.Embed(self.vocab_size, self.embed_dim)
         self.cond_emb = nn.Embed(self.vocab_size, self.embed_dim)
-        self.pos_emb = nn.Embed(self.seq_len, self.embed_dim)
+        self.pos_emb = nn.Embed(self.max_len, self.embed_dim)
         self.concat = Concatenate(axis=1)
         self.t_blocks = [
             TransformerBlock(self.num_heads, self.hidden_dim, self.drop_rate, self.decode)
@@ -47,6 +48,7 @@ class GPT(nn.Module):
     vocab_size: int
     embed_dim: int
     seq_len: int
+    max_len: int
     hidden_dim: int
     num_heads: int
     num_layers: int
@@ -72,7 +74,8 @@ class GPT(nn.Module):
             mask = nn.make_causal_mask(tokens, dtype=jnp.bfloat16)
 
         return Transformer(
-            self.vocab_size, self.embed_dim, self.seq_len, self.hidden_dim, self.num_heads, self.num_layers, self.drop_rate, decode=not training
+            self.vocab_size, self.embed_dim, self.seq_len, self.max_len, self.hidden_dim,
+            self.num_heads, self.num_layers, self.drop_rate, decode=not training
         )(cond, x, pos, mask, training=training)
 
     def gen(self, cond):
