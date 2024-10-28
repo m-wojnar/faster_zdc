@@ -15,6 +15,17 @@ from zdc.utils.train import train_loop
 
 optimizer = opt_with_cosine_schedule(partial(optax.adamw, b1=0.80, b2=0.65, eps=1.7e-9, weight_decay=0.33), peak_value=3.6e-3)
 
+GPTPrior = partial(GPT,
+   vocab_size=512,
+   embed_dim=128,
+   seq_len=121,
+   max_len=122,
+   hidden_dim=256,
+   num_heads=4,
+   num_layers=6,
+   drop_rate=0.1
+)
+
 
 def loss_fn(params, state, key, c, x, y, model):
     logits, state = forward(model, params, state, key, c, x)
@@ -24,9 +35,8 @@ def loss_fn(params, state, key, c, x, y, model):
 
 
 def eval_fn(generated, *dataset):
-    c, _, y = dataset
-    generated = jax.nn.one_hot(generated, 512).astype(jnp.float32)
-    loss = xentropy_loss(generated, y[:, c.shape[1] - 1:])
+    *_, y = dataset
+    loss = xentropy_loss(generated, y)
     perplexity = jnp.exp(loss)
     return loss, perplexity
 
@@ -64,13 +74,13 @@ if __name__ == '__main__':
 
     c_val, c_test, x_val, x_test, y_val, y_test = jax.tree.map(lambda x: x[:-(x.shape[0] % batch_size)], (c_val, c_test, x_val, x_test, y_val, y_test))
 
-    model = GPT(vocab_size=512, embed_dim=64, seq_len=121, max_len=122, hidden_dim=128, num_heads=2, num_layers=2, drop_rate=0.1)
+    model = GPTPrior()
     params, state = init(model, init_key, c_train[:5], x_train[:5], print_summary=True)
     cache = model.init({'params': jax.random.PRNGKey(0)}, c_train[:batch_size], x_train[:batch_size], False)['cache']
     opt_state = optimizer.init(params)
 
     train_fn = jax.jit(partial(gradient_step, optimizer=optimizer, loss_fn=partial(loss_fn, model=model)))
-    gen_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state | {'cache': cache}, key, x[0], method='gen')[0])
+    gen_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[0], x[1])[0])
     metrics = ('loss', 'perplexity')
 
     train_loop(
