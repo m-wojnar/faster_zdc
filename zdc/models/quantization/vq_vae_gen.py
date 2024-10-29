@@ -47,7 +47,7 @@ if __name__ == '__main__':
     c_test, c_sample = jax.tree.map(tok_fn, tuple(jax.random.split(tokenize_key)), (p_test, p_sample))
 
     metrics = Metrics(job_type='train', name='vq_vae_gen')
-    eval_metrics = ('mse', 'mae', 'wasserstein')
+    eval_metrics = ('rmse', 'mae', 'wasserstein')
     generated, original = [], []
 
     for r_batch, c_batch in batches(r_test, c_test, batch_size=batch_size):
