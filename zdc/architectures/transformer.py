@@ -40,8 +40,14 @@ class Transformer(nn.Module):
         for block in self.t_blocks:
             x = block(x, mask, training=training)
 
-        c, x = jnp.split(x, [cond.shape[1] - 1], axis=1)
-        c, x = self.out_ln_c(c), self.out_ln_x(x)
+        if cond.shape[1] > 0 and x.shape[1] > 0:
+            c, x = jnp.split(x, [cond.shape[1] - 1], axis=1)
+            c = self.out_ln_c(c), self.out_ln_x(x)
+        elif cond.shape[1] > 0:
+            x = self.out_ln_c(x)
+        elif x.shape[1] > 0:
+            x = self.out_ln_x(x)
+
         c = self.cond_emb.attend(c.astype(jnp.float32))
         x = self.token_emb.attend(x.astype(jnp.float32))
         x = self.post_concat(c, x)
