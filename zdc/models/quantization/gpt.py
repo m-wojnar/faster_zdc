@@ -13,17 +13,21 @@ from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule,
 from zdc.utils.train import train_loop
 
 
-optimizer = opt_with_cosine_schedule(partial(optax.adamw, b1=0.80, b2=0.65, eps=1.7e-9, weight_decay=0.33), peak_value=3.6e-3)
+optimizer = opt_with_cosine_schedule(
+    partial(optax.adamw, b1=0.87, b2=0.998, eps=1e-5, weight_decay=0.14),
+    peak_value=5.2e-3,
+    pct_start=0.33
+)
 
 GPTPrior = partial(GPT,
-   vocab_size=512,
-   embed_dim=128,
-   seq_len=121,
-   max_len=122,
-   hidden_dim=256,
-   num_heads=4,
-   num_layers=6,
-   drop_rate=0.1
+    vocab_size=512,
+    embed_dim=128,
+    seq_len=121,
+    max_len=122,
+    hidden_dim=256,
+    num_heads=4,
+    num_layers=6,
+    drop_rate=0.1
 )
 
 

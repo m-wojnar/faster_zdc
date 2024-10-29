@@ -16,8 +16,8 @@ from zdc.utils.nn import init, forward, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
-gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.55, b2=0.62), peak_value=8.8e-4)
-disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.45, b2=0.88), peak_value=1.1e-6)
+gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.67, b2=0.9), peak_value=2.2e-4)
+disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.6, b2=0.55), peak_value=1.3e-6)
 
 
 class VQVAE(nn.Module):

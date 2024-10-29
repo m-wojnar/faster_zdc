@@ -85,9 +85,9 @@ def objective(trial, train_dataset, val_dataset, name, n_rep=5, epochs=50, batch
 
 if __name__ == "__main__":
     args = ArgumentParser()
-    args.add_argument('--database', required=True, type=str)
-    args.add_argument('--name', required=True, type=str)
-    args.add_argument('--trials', type=int, default=200)
+    args.add_argument('--database', type=str, default='postgresql://optuna:postgres@t0048:5432/optuna')
+    args.add_argument('--name', type=str, default='faster_zdc_vq_gan')
+    args.add_argument('--trials', type=int, default=400)
     args = args.parse_args()
 
     r_train, r_val, _, p_train, p_val, _ = load()
