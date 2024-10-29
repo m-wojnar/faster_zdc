@@ -20,17 +20,19 @@ class Transformer(nn.Module):
         self.token_emb = nn.Embed(self.vocab_size, self.embed_dim)
         self.cond_emb = nn.Embed(self.vocab_size, self.embed_dim)
         self.pos_emb = nn.Embed(self.max_len, self.embed_dim)
-        self.concat = Concatenate(axis=1)
+        self.pre_concat = Concatenate(axis=1)
         self.t_blocks = [
             TransformerBlock(self.num_heads, self.hidden_dim, self.drop_rate, self.decode)
             for _ in range(self.num_layers)
         ]
-        self.out_ln = nn.LayerNorm(use_bias=False, dtype=jnp.bfloat16)
+        self.out_ln_x = nn.LayerNorm(use_bias=False, dtype=jnp.bfloat16)
+        self.out_ln_c = nn.LayerNorm(use_bias=False, dtype=jnp.bfloat16)
+        self.post_concat = Concatenate(axis=1)
 
     def __call__(self, cond, x, pos, mask, training=True):
         c = self.cond_emb(cond)
         x = self.token_emb(x)
-        x = self.concat(c, x)
+        x = self.pre_concat(c, x)
 
         pos = self.pos_emb(pos)
         x = x + pos
@@ -38,8 +40,11 @@ class Transformer(nn.Module):
         for block in self.t_blocks:
             x = block(x, mask, training=training)
 
-        x = self.out_ln(x)
+        c, x = jnp.split(x, [cond.shape[1] - 1], axis=1)
+        c, x = self.out_ln_c(c), self.out_ln_x(x)
+        c = self.cond_emb.attend(c.astype(jnp.float32))
         x = self.token_emb.attend(x.astype(jnp.float32))
+        x = self.post_concat(c, x)
 
         return x
 
@@ -78,7 +83,24 @@ class GPT(nn.Module):
             self.num_heads, self.num_layers, self.drop_rate, decode=not training
         )(cond, x, pos, mask, training=training)
 
-    def gen(self, cond):
+    @staticmethod
+    def select_top_k(logits, top_k):
+        values, indices = jax.lax.top_k(logits, top_k)
+        mask = jnp.zeros_like(logits, dtype=bool)
+        mask = mask.at[jnp.arange(logits.shape[0])[:, None], indices].set(True)
+        return jnp.where(mask, logits, -jnp.inf)
+
+    @staticmethod
+    def select_top_p(logits, top_p):
+        sorted_logits = jnp.sort(logits, axis=-1)
+        sorted_indices = jnp.argsort(logits, axis=-1)
+        cumulative_probs = jnp.cumsum(nn.softmax(sorted_logits, axis=-1), axis=-1)
+        sorted_logits = jnp.where(cumulative_probs > (1 - top_p), sorted_logits, -jnp.inf)
+        out = jnp.empty_like(sorted_logits)
+        out = out.at[jnp.arange(logits.shape[0])[:, None], sorted_indices].set(sorted_logits)
+        return out
+
+    def gen(self, cond, temperature=1.0, top_k=None, top_p=None):
         def scan_fn(gpt, carry):
             prev_token, key, idx = carry
             key, cat_key = jax.random.split(key)
@@ -91,7 +113,13 @@ class GPT(nn.Module):
                 gpt,input
             )
 
-            next_token = jax.random.categorical(cat_key, logits)
+            if top_k is not None:
+                logits = self.select_top_k(logits, top_k)
+
+            if top_p is not None:
+                logits = self.select_top_p(logits, top_p)
+
+            next_token = jax.random.categorical(cat_key, logits / temperature)
             return (next_token, key, idx + 1), next_token
 
         empty = jnp.empty((cond.shape[0], 0), dtype=jnp.int32)
