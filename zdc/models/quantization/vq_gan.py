@@ -44,7 +44,6 @@ class VQVAE(nn.Module):
         return self.decoder(quantized_sg), encoded, discrete, quantized
 
     def gen(self, discrete):
-        discrete = nn.one_hot(discrete, self.num_embeddings)
         quantized = self.quantizer.quantize(discrete)
         quantized = quantized.reshape(-1, 11, 11, self.emb_channels)
         quantized = VectorQuantizerEMA.l2_normalize(quantized) if self.normalize else quantized

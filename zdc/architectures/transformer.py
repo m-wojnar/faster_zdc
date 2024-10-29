@@ -79,22 +79,22 @@ class GPT(nn.Module):
         )(cond, x, pos, mask, training=training)
 
     def gen(self, cond):
-        def scan_cond_fn(gpt, carry, cond):
-            empty = carry
-            _ = gpt(cond[..., None], empty, training=False)
-            return empty, cond
-
         def scan_fn(gpt, carry):
-            prev_token, empty, key = carry
+            prev_token, key, idx = carry
             key, cat_key = jax.random.split(key)
-            logits = gpt(empty, prev_token, training=False)
+
+            input = jax.lax.select(idx < cond.shape[1], cond[:, idx][:, None], prev_token)
+            logits = nn.cond(
+                idx < cond.shape[1],
+                lambda model, x: model(x, empty, training=False),
+                lambda model, x: model(empty, x, training=False),
+                gpt,input
+            )
+
             next_token = jax.random.categorical(cat_key, logits)
-            return (next_token, empty, key), next_token
+            return (next_token, key, idx + 1), next_token
 
-        scan_cond = nn.scan(scan_cond_fn, variable_broadcast='params', variable_carry='cache', in_axes=1)
         empty = jnp.empty((cond.shape[0], 0), dtype=jnp.int32)
-        scan_cond(self, empty, cond)
-
-        scan = nn.scan(scan_fn, variable_broadcast='params', variable_carry='cache', out_axes=1, length=self.seq_len)
-        _, generated = scan(self, (cond[..., -1][..., None], empty, self.make_rng('zdc')))
-        return generated[..., 0]
+        scan = nn.scan(scan_fn, variable_broadcast='params', variable_carry='cache', out_axes=1, length=self.max_len)
+        _, generated = scan(self, (cond[:, -1][:, None], self.make_rng('zdc'), 0))
+        return generated[..., -self.seq_len:, 0]

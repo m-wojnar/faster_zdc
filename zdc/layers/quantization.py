@@ -48,7 +48,7 @@ class VectorQuantizer(nn.Module):
         return discrete, quantized
 
     def quantize(self, discrete):
-        return jnp.dot(discrete, self.codebook.embedding)
+        return self.codebook.embedding[discrete]
 
 
 class VectorQuantizerEMA(VectorQuantizer):
@@ -120,4 +120,4 @@ class VectorQuantizerEMA(VectorQuantizer):
         return discrete, quantized
 
     def quantize(self, discrete):
-        return jnp.dot(discrete, self.codebook.value)
+        return self.codebook.value[discrete]

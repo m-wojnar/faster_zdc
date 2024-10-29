@@ -14,8 +14,8 @@ from zdc.utils.train import default_eval_fn
 
 def generate_fn(key, c, vq_gan, vq_gan_variables, vq_prior, vq_prior_variables):
     prior_key, decoder_key = jax.random.split(key)
-    empty = jnp.empty((c.shape[0], 0), dtype=int)
-    cache = vq_prior.init({'params': jax.random.PRNGKey(0)}, c, empty, False)['cache']
+    x_empty = jnp.empty((c.shape[0], 11 * 11), dtype=jnp.int32)
+    cache = vq_prior.init({'params': jax.random.PRNGKey(0)}, c, x_empty, False)['cache']
     vq_prior_variables = (vq_prior_variables[0], vq_prior_variables[1] | {'cache': cache})
 
     generated, _ = forward(vq_prior, *vq_prior_variables, prior_key, c, method='gen')
