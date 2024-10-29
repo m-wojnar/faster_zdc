@@ -94,14 +94,14 @@ class GPT(nn.Module):
         values, indices = jax.lax.top_k(logits, top_k)
         mask = jnp.zeros_like(logits, dtype=bool)
         mask = mask.at[jnp.arange(logits.shape[0])[:, None], indices].set(True)
-        return jnp.where(mask, logits, -jnp.inf)
+        return jnp.where(mask, logits, -1e9)
 
     @staticmethod
     def select_top_p(logits, top_p):
         sorted_logits = jnp.sort(logits, axis=-1)
         sorted_indices = jnp.argsort(logits, axis=-1)
         cumulative_probs = jnp.cumsum(nn.softmax(sorted_logits, axis=-1), axis=-1)
-        sorted_logits = jnp.where(cumulative_probs > (1 - top_p), sorted_logits, -jnp.inf)
+        sorted_logits = jnp.where(cumulative_probs > (1 - top_p), sorted_logits, -1e9)
         out = jnp.empty_like(sorted_logits)
         out = out.at[jnp.arange(logits.shape[0])[:, None], sorted_indices].set(sorted_logits)
         return out
