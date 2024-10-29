@@ -57,6 +57,6 @@ if __name__ == '__main__':
             original.append(r_batch)
 
     generated, original = jnp.concatenate(generated), jnp.concatenate(original)
-    metrics.add(dict(zip(eval_metrics, default_eval_fn(generated, *original))), 'test')
+    metrics.add(dict(zip(eval_metrics, default_eval_fn(generated, original))), 'test')
     metrics.plot_responses(r_sample, gen_fn(plot_key, c_sample).astype(jnp.float32), 0)
     metrics.log(0)
