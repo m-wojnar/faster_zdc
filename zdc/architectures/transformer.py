@@ -42,7 +42,7 @@ class Transformer(nn.Module):
 
         if cond.shape[1] > 0 and x.shape[1] > 0:
             c, x = jnp.split(x, [cond.shape[1] - 1], axis=1)
-            c = self.out_ln_c(c), self.out_ln_x(x)
+            c, x = self.out_ln_c(c), self.out_ln_x(x)
         elif cond.shape[1] > 0:
             x = self.out_ln_c(x)
         elif x.shape[1] > 0:
