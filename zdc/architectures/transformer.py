@@ -105,7 +105,7 @@ class GPT(nn.Module):
         i, j, _ = jnp.ogrid[:logits.shape[0], :logits.shape[1], :logits.shape[2]]
         return jnp.empty_like(sorted_logits).at[i, j, sorted_indices].set(sorted_logits)
 
-    def gen(self, cond, temperature=1.0, top_k=None, top_p=None):
+    def gen(self, cond, temperature=1.2, top_k=128, top_p=None):
         def scan_fn(gpt, carry):
             prev_token, key, idx = carry
             key, cat_key = jax.random.split(key)
