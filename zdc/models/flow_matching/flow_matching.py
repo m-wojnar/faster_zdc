@@ -40,7 +40,7 @@ def loss_fn(params, state, key, img, cond, model):
     z_key, t_key, model_key = jax.random.split(key, 3)
 
     z = jax.random.normal(z_key, img.shape)
-    t = jax.random.uniform(t_key, img.shape[0], minval=0.0, maxval=0.99)
+    t = jax.random.uniform(t_key, (img.shape[0],), minval=0.0, maxval=0.99)
     t_b = t[..., None, None, None]
 
     x_t = (1 - t_b) * z + t_b * img
@@ -78,6 +78,6 @@ if __name__ == '__main__':
     train_metrics = ('loss', 'v_abs_mean', 'v_pred_abs_mean', 'gn')
 
     train_loop(
-        'variational', train_fn, None, generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
+        'flow_matching', train_fn, None, generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
         train_metrics, None, (params, params), state, opt_state, train_key
     )
