@@ -110,6 +110,5 @@ class UNet(nn.Module):
         x = LayerNormF32()(x)
         x = nn.swish(x)
         x = Conv(1, kernel_size=1)(x)
-        x = nn.relu(x)
 
         return x
