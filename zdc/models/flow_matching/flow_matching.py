@@ -9,11 +9,11 @@ from zdc.architectures.unet import UNet
 from zdc.models import RESPONSE_SHAPE
 from zdc.utils.data import load
 from zdc.utils.losses import mse_loss
-from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
+from zdc.utils.nn import init, forward, gradient_step
 from zdc.utils.train import train_loop
 
 
-optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.58, b2=0.75), peak_value=2.3e-3)
+optimizer = optax.adam(4.4e-4, b1=0.7, b2=0.88)
 
 
 class FMUnet(UNet):
@@ -65,12 +65,12 @@ def step_fn(params, carry, opt_state, optimizer, loss_fn):
 
 if __name__ == '__main__':
     key = jax.random.PRNGKey(72)
-    gen_init_key, disc_init_key, train_key = jax.random.split(key, 3)
+    init_key, train_key = jax.random.split(key)
 
     r_train, r_val, r_test, p_train, p_val, p_test = load()
 
     model = FMUnet()
-    params, state = init(model, gen_init_key, r_train[:5], p_train[:5], jnp.empty(5), print_summary=True)
+    params, state = init(model, init_key, r_train[:5], p_train[:5], jnp.empty(5), print_summary=True)
     opt_state = optimizer.init(params)
 
     train_fn = jax.jit(partial(step_fn, optimizer=optimizer, loss_fn=partial(loss_fn, model=model)))
