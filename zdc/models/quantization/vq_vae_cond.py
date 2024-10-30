@@ -70,6 +70,13 @@ class VQVAE(nn.Module):
         quantized_sg = encoded + jax.lax.stop_gradient(quantized - encoded)
         return self.decoder(quantized_sg), encoded, discrete, quantized
 
+    def encode(self, cond):
+        encoded = self.encoder(cond)
+        discrete, _ = self.quantizer(encoded)
+        discrete = jnp.argmax(discrete, axis=-1)
+        discrete = discrete.reshape(cond.shape[0], -1)
+        return discrete
+
 
 def loss_fn(params, state, key, img, cond, model):
     (reconstructed, encoded, discrete, quantized), state = forward(model, params, state, key, cond)
