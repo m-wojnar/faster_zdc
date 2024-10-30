@@ -1,5 +1,3 @@
-from typing import List
-
 from flax import linen as nn
 
 from zdc.layers import AttentionBlock, Conv, DownSample, LayerNormF32, ResidualBlock, UpSample
@@ -7,7 +5,7 @@ from zdc.layers import AttentionBlock, Conv, DownSample, LayerNormF32, ResidualB
 
 class Encoder(nn.Module):
     channels: int
-    channel_multipliers: List[int]
+    channel_multipliers: tuple
     n_resnet_blocks: int
     n_heads: int
 
@@ -34,7 +32,7 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     channels: int
-    channel_multipliers: List[int]
+    channel_multipliers: tuple
     n_resnet_blocks: int
     n_heads: int
 

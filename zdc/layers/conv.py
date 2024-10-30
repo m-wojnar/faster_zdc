@@ -57,12 +57,18 @@ class ResidualBlock(nn.Module):
     channels: int
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x, t=None):
         residual = x
 
         x = LayerNormF32()(x)
         x = nn.swish(x)
         x = Conv(self.channels, kernel_size=3)(x)
+
+        if t is not None:
+            t = t[:, None, None, :]
+            t = Conv(self.channels, kernel_size=1, init_std=0.01 / self.channels)(t)
+            t = nn.swish(t)
+            x = x + t
 
         x = LayerNormF32()(x)
         x = nn.swish(x)
