@@ -61,9 +61,6 @@ if __name__ == '__main__':
     params, state = init(model, init_key, l_train[:5], p_train[:5], jnp.empty(5), print_summary=True)
     opt_state = optimizer.init(params)
 
-    import sys
-    sys.exit()
-
     train_fn = jax.jit(partial(latent_step_fn, optimizer=optimizer, loss_fn=partial(loss_fn, model=model)))
     generate_fn = jax.jit(partial(generate_fn, latent_model=model, vae_model=vae, vae_variables=vae_variables))
     train_metrics = ('loss', 'v_abs_mean', 'v_pred_abs_mean', 'gn')
