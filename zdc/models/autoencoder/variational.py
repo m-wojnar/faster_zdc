@@ -39,6 +39,11 @@ class VAE(nn.Module):
         z = self.sampling(z_mean, z_log_var)
         return self.decoder(z), z_mean, z_log_var
 
+    def encode(self, img):
+        z = self.encoder(img)
+        z_mean = self.z_mean_conv(z)
+        return z_mean
+
     def gen(self, z):
         return self.decoder(z)
 

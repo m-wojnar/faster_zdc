@@ -62,6 +62,8 @@ class UNet(nn.Module):
 
     @nn.compact
     def __call__(self, img, cond, t):
+        in_channels = img.shape[-1]
+
         emb_dim = self.channels * self.channel_multipliers[0]
         c = MLP(2 * emb_dim)(cond)
         t = TimeEmbedding(emb_dim, 2 * emb_dim)(t)
@@ -109,6 +111,6 @@ class UNet(nn.Module):
 
         x = LayerNormF32()(x)
         x = nn.swish(x)
-        x = Conv(1, kernel_size=1)(x)
+        x = Conv(in_channels, kernel_size=1)(x)
 
         return x

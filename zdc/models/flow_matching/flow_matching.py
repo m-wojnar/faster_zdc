@@ -21,6 +21,7 @@ class FMUnet(UNet):
     channel_multipliers: tuple = (2, 3, 4)
     n_resnet_blocks: int = 2
     n_heads: int = 2
+    out_shape: tuple = RESPONSE_SHAPE
 
     def gen(self, cond, n_steps=10):
         def scan_fn(unet, x, t):
@@ -29,7 +30,7 @@ class FMUnet(UNet):
             x = x + v / n_steps
             return x, None
 
-        z = jax.random.normal(self.make_rng('zdc'), (cond.shape[0], *RESPONSE_SHAPE))
+        z = jax.random.normal(self.make_rng('zdc'), (cond.shape[0], *self.out_shape))
         scan = nn.scan(scan_fn, variable_broadcast='params')
         x, _ = scan(self, z, jnp.linspace(0.0, 1.0, n_steps, endpoint=False))
         x = nn.relu(x)
