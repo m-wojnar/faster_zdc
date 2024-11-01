@@ -5,9 +5,9 @@ import jax.numpy as jnp
 import optax
 
 from zdc.models.autoencoder.variational import VAE
-from zdc.models.flow_matching.flow_matching import FMUnet, loss_fn, step_fn
+from zdc.models.flow_matching.flow_matching import FMUnet, loss_fn
 from zdc.utils.data import load, batches
-from zdc.utils.nn import init, forward, load_model
+from zdc.utils.nn import init, forward, load_model, gradient_step
 from zdc.utils.train import train_loop
 
 
@@ -36,11 +36,11 @@ def encode_fn(x, batch_size, vae, vae_variables):
 def latent_step_fn(params, carry, opt_state, optimizer, loss_fn):
     state, key, _, latent, cond = carry
     carry = (state, key, latent, cond)
-    return step_fn(params, carry, opt_state, optimizer, loss_fn)
+    return gradient_step(params, carry, opt_state, optimizer, loss_fn)
 
 
 def generate_fn(params, state, key, *x, latent_model, vae_model, vae_variables):
-    z, _ = forward(latent_model, params[0], state, key, x[-1], method='gen')
+    z, _ = forward(latent_model, params, state, key, x[-1], method='gen')
     x, _ = forward(vae_model, *vae_variables, key, z, method='gen')
     return x
 
@@ -67,5 +67,5 @@ if __name__ == '__main__':
 
     train_loop(
         'latent_flow_matching', train_fn, None, generate_fn, (r_train, l_train, p_train), (r_val, l_val, p_val), (r_test, l_test, p_test),
-        train_metrics, None, (params, params), state, opt_state, train_key
+        train_metrics, None, params, state, opt_state, train_key
     )

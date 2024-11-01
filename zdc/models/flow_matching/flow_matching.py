@@ -56,14 +56,6 @@ def loss_fn(params, state, key, img, cond, model):
     return loss, (state, loss, v_abs_mean, v_pred_abs_mean)
 
 
-def step_fn(params, carry, opt_state, optimizer, loss_fn):
-    params, ema_params = params
-    params_new, opt_state, grads, (state, *losses) = gradient_step(params, carry, opt_state, optimizer, loss_fn)
-    ema_params = optax.incremental_update(params, ema_params, 0.999)
-    gn = optax.tree_utils.tree_l2_norm(grads)
-    return (params_new, ema_params), opt_state, None, (state, *losses, gn)
-
-
 if __name__ == '__main__':
     key = jax.random.PRNGKey(72)
     init_key, train_key = jax.random.split(key)
@@ -74,11 +66,11 @@ if __name__ == '__main__':
     params, state = init(model, init_key, r_train[:5], p_train[:5], jnp.empty(5), print_summary=True)
     opt_state = optimizer.init(params)
 
-    train_fn = jax.jit(partial(step_fn, optimizer=optimizer, loss_fn=partial(loss_fn, model=model)))
-    generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params[0], state, key, x[1], method='gen')[0])
-    train_metrics = ('loss', 'v_abs_mean', 'v_pred_abs_mean', 'gn')
+    train_fn = jax.jit(partial(gradient_step, optimizer=optimizer, loss_fn=partial(loss_fn, model=model)))
+    generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[1], method='gen')[0])
+    train_metrics = ('loss', 'v_abs_mean', 'v_pred_abs_mean')
 
     train_loop(
         'flow_matching', train_fn, None, generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
-        train_metrics, None, (params, params), state, opt_state, train_key
+        train_metrics, None, params, state, opt_state, train_key
     )
