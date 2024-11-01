@@ -23,7 +23,7 @@ class FMUnet(UNet):
     n_heads: int = 2
     out_shape: tuple = RESPONSE_SHAPE
 
-    def gen(self, cond, n_steps=10):
+    def gen(self, cond, n_steps=11):
         def scan_fn(unet, x, t):
             t = jnp.full(cond.shape[0], t)
             v = unet(x, cond, t)

@@ -11,7 +11,7 @@ from zdc.utils.nn import init, forward, load_model
 from zdc.utils.train import train_loop
 
 
-optimizer = optax.adam(4.4e-4, b1=0.7, b2=0.88)
+optimizer = optax.adam(4.6e-3, b1=0.46, b2=0.77)
 
 
 class LatentFMUnet(FMUnet):
