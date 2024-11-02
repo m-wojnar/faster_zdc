@@ -37,11 +37,16 @@ class FMUnet(UNet):
         return x
 
 
-def loss_fn(params, state, key, img, cond, model):
+def loss_fn(params, state, key, img, cond, model, schedule='uniform'):
     z_key, t_key, model_key = jax.random.split(key, 3)
 
+    if schedule == 'log-normal':
+        t = jax.random.normal(t_key, (img.shape[0],))
+        t = 1 / (1 + jnp.exp(-t))
+    elif schedule == 'uniform':
+        t = jax.random.uniform(t_key, (img.shape[0],), minval=0.0, maxval=0.99)
+
     z = jax.random.normal(z_key, img.shape)
-    t = jax.random.uniform(t_key, (img.shape[0],), minval=0.0, maxval=0.99)
     t_b = t[..., None, None, None]
 
     x_t = (1 - t_b) * z + t_b * img
