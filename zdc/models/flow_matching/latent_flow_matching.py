@@ -7,11 +7,11 @@ import optax
 from zdc.models.autoencoder.variational import VAE
 from zdc.models.flow_matching.flow_matching import FMUnet, loss_fn
 from zdc.utils.data import load, batches
-from zdc.utils.nn import init, forward, load_model, gradient_step
+from zdc.utils.nn import init, forward, load_model, gradient_step, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
-optimizer = optax.adam(4.6e-3, b1=0.46, b2=0.77)
+optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.9, b2=0.6), peak_value=1.3e-3)
 
 
 class LatentFMUnet(FMUnet):
@@ -40,7 +40,7 @@ def latent_step_fn(params, carry, opt_state, optimizer, loss_fn):
 
 
 def generate_fn(params, state, key, *x, latent_model, vae_model, vae_variables):
-    z, _ = forward(latent_model, params, state, key, x[-1], method='gen')
+    z, _ = forward(latent_model, params, state, key, x[-1], 6, method='gen')
     x, _ = forward(vae_model, *vae_variables, key, z, method='gen')
     return x
 
