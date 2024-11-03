@@ -33,6 +33,10 @@ class FMUnet(UNet):
         z = jax.random.normal(self.make_rng('zdc'), (cond.shape[0], *self.out_shape))
         scan = nn.scan(scan_fn, variable_broadcast='params')
         x, _ = scan(self, z, jnp.linspace(0.0, 1.0, n_steps, endpoint=False))
+        return x
+
+    def gen_zdc(self, cond, n_steps=11):
+        x = self.gen(cond, n_steps)
         x = nn.relu(x)
         return x
 
@@ -45,6 +49,8 @@ def loss_fn(params, state, key, img, cond, model, schedule='uniform'):
         t = 1 / (1 + jnp.exp(-t))
     elif schedule == 'uniform':
         t = jax.random.uniform(t_key, (img.shape[0],), minval=0.0, maxval=0.99)
+    else:
+        raise ValueError(f'Invalid schedule: {schedule}')
 
     z = jax.random.normal(z_key, img.shape)
     t_b = t[..., None, None, None]
@@ -72,7 +78,7 @@ if __name__ == '__main__':
     opt_state = optimizer.init(params)
 
     train_fn = jax.jit(partial(gradient_step, optimizer=optimizer, loss_fn=partial(loss_fn, model=model)))
-    generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[1], method='gen')[0])
+    generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[1], method='gen_zdc')[0])
     train_metrics = ('loss', 'v_abs_mean', 'v_pred_abs_mean')
 
     train_loop(
