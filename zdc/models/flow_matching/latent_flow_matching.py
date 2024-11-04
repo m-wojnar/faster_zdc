@@ -40,7 +40,7 @@ def latent_step_fn(params, carry, opt_state, optimizer, loss_fn):
 
 
 def generate_fn(params, state, key, *x, latent_model, vae_model, vae_variables):
-    z, _ = forward(latent_model, params, state, key, x[-1], 6, method='gen')
+    z, _ = forward(latent_model, params, state, key, x[-1], 8, method='gen')
     x, _ = forward(vae_model, *vae_variables, key, z, method='gen')
     return x
 
