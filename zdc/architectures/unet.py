@@ -108,6 +108,8 @@ class UNet(nn.Module):
 
             if i != len(self.channel_multipliers) - 1:
                 x = UpSample()(x)
+                _, h, w, _ = hidden[-idx].shape
+                x = x[:, :h, :w]
 
         x = LayerNormF32()(x)
         x = nn.swish(x)
