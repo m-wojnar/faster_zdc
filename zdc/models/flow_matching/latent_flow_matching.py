@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from zdc.models import RESPONSE_SHAPE
+from zdc.models import LATENT_RESPONSE_SHAPE
 from zdc.models.autoencoder.variational import VAE
 from zdc.models.flow_matching.flow_matching import FMUnet, loss_fn
 from zdc.utils.data import load, batches
@@ -20,7 +20,7 @@ class LatentFMUnet(FMUnet):
     channel_multipliers: tuple = (1, 2, 4)
     n_resnet_blocks: int = 1
     n_heads: int = 2
-    out_shape: tuple = (RESPONSE_SHAPE[0] // 4, RESPONSE_SHAPE[1] // 4, 4)
+    out_shape: tuple = LATENT_RESPONSE_SHAPE
 
 
 def encode_fn(x, batch_size, vae, vae_variables):
@@ -35,10 +35,11 @@ def latent_step_fn(params, carry, opt_state, optimizer, loss_fn):
 
 
 def generate_fn(params, state, key, *x, latent_model, vae_model, vae_variables):
+    _, h, w, _ = x[0].shape
     z, _ = forward(latent_model, params, state, key, x[-1], 8, method='gen')
     x, _ = forward(vae_model, *vae_variables, key, z, method='gen')
-    _, h, w, _ = x[0].shape
-    return x[:, :h, :w]
+    ph, pw = (x.shape[1] - h) // 2, (x.shape[2] - w) // 2
+    return x[:, ph:ph + h, pw:pw + w]
 
 
 if __name__ == '__main__':
