@@ -38,7 +38,7 @@ def generate_fn(params, state, key, *x, latent_model, vae_model, vae_variables):
     original_shape = x[0].shape
     z, _ = forward(latent_model, params, state, key, x[-1], 8, method='gen')
     x, _ = forward(vae_model, *vae_variables, key, z, method='gen')
-    return clip_image(x, original_shape)
+    return clip_image(original_shape, x)
 
 
 if __name__ == '__main__':
