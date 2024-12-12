@@ -6,14 +6,23 @@ import optax
 from flax import linen as nn
 
 from zdc.layers import Flatten, Reshape, VectorQuantizer
-from zdc.models import PARTICLE_SHAPE
+from zdc.models import PARTICLE_SHAPE, ParticleType, PARTICLE_TYPE
 from zdc.utils.data import load
 from zdc.utils.losses import mse_loss
 from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
-optimizer = opt_with_cosine_schedule(partial(optax.adamw, b1=0.71, b2=0.88, weight_decay=0.03), 1.7e-3)
+n_optimizer = opt_with_cosine_schedule(partial(optax.adamw, b1=0.71, b2=0.88, weight_decay=0.03), 1.7e-3)
+
+
+match PARTICLE_TYPE:
+    case ParticleType.NEUTRON:
+        optimizer = n_optimizer
+    case ParticleType.PROTON:
+        raise ValueError('Optimizer not tuned for the ZDC proton detector')
+    case _:
+        raise ValueError('Invalid particle type')
 
 
 class Encoder(nn.Module):

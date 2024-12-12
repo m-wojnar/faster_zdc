@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import optax
 
 from zdc.architectures.transformer import GPT
+from zdc.models import PARTICLE_TYPE, ParticleType
 from zdc.models.quantization.vq_gan import VQVAE as VQGAN
 from zdc.models.quantization.vq_vae_cond import VQVAE as VQVAE
 from zdc.utils.data import load, batches
@@ -13,11 +14,19 @@ from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule,
 from zdc.utils.train import train_loop
 
 
-optimizer = opt_with_cosine_schedule(
+n_optimizer = opt_with_cosine_schedule(
     partial(optax.adamw, b1=0.87, b2=0.998, eps=1e-5, weight_decay=0.14),
     peak_value=5.2e-3,
     pct_start=0.33
 )
+
+match PARTICLE_TYPE:
+    case ParticleType.NEUTRON:
+        optimizer = n_optimizer
+    case ParticleType.PROTON:
+        raise ValueError('Optimizer not tuned for the ZDC proton detector')
+    case _:
+        raise ValueError('Invalid particle type')
 
 GPTPrior = partial(GPT,
     vocab_size=512,

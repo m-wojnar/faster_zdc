@@ -6,6 +6,7 @@ from flax import linen as nn
 
 from zdc.architectures.conv import Encoder, Decoder
 from zdc.layers import Conv, Sampling
+from zdc.models import PARTICLE_TYPE, ParticleType
 from zdc.models.gan.vgg_discriminator import Discriminator
 from zdc.utils.data import load
 from zdc.utils.grad import grad_norm
@@ -14,8 +15,21 @@ from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule,
 from zdc.utils.train import train_loop
 
 
-gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.58, b2=0.75), peak_value=2.3e-3)
-disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.44, b2=0.77), peak_value=1.4e-6)
+n_gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.58, b2=0.75), peak_value=2.3e-3)
+p_gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.92, b2=0.75), peak_value=2.1e-3)
+n_disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.44, b2=0.77), peak_value=1.4e-6)
+p_disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.62, b2=0.72), peak_value=4.5e-6)
+
+
+match PARTICLE_TYPE:
+    case ParticleType.NEUTRON:
+        disc_optimizer = n_disc_optimizer
+        gen_optimizer = n_gen_optimizer
+    case ParticleType.PROTON:
+        disc_optimizer = p_disc_optimizer
+        gen_optimizer = p_gen_optimizer
+    case _:
+        raise ValueError('Invalid particle type')
 
 
 class VAE(nn.Module):

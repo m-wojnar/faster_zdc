@@ -6,14 +6,24 @@ import optax
 from flax import linen as nn
 
 from zdc.architectures.unet import UNet
-from zdc.models import RESPONSE_SHAPE
+from zdc.models import PARTICLE_TYPE, ParticleType, RESPONSE_SHAPE
 from zdc.utils.data import load
 from zdc.utils.losses import mse_loss
-from zdc.utils.nn import init, forward, gradient_step
+from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
-optimizer = optax.adam(4.4e-4, b1=0.7, b2=0.88)
+n_optimizer = optax.adam(4.4e-4, b1=0.70, b2=0.88)
+p_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.94, b2=0.91), peak_value=2.7e-3)
+
+
+match PARTICLE_TYPE:
+    case ParticleType.NEUTRON:
+        optimizer = n_optimizer
+    case ParticleType.PROTON:
+        optimizer = p_optimizer
+    case _:
+        raise ValueError('Invalid particle type')
 
 
 class FMUnet(UNet):

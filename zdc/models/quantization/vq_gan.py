@@ -7,6 +7,7 @@ from flax import linen as nn
 
 from zdc.architectures.conv import Encoder, Decoder
 from zdc.layers import Conv, VectorQuantizerEMA
+from zdc.models import PARTICLE_TYPE, ParticleType
 from zdc.models.autoencoder.variational import step_fn, disc_loss_fn
 from zdc.models.gan.vgg_discriminator import Discriminator
 from zdc.utils.data import load
@@ -16,8 +17,18 @@ from zdc.utils.nn import init, forward, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
-gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.67, b2=0.9), peak_value=2.2e-4)
-disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.6, b2=0.55), peak_value=1.3e-6)
+n_gen_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.67, b2=0.9), peak_value=2.2e-4)
+n_disc_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.6, b2=0.55), peak_value=1.3e-6)
+
+
+match PARTICLE_TYPE:
+    case ParticleType.NEUTRON:
+        disc_optimizer = n_disc_optimizer
+        gen_optimizer = n_gen_optimizer
+    case ParticleType.PROTON:
+        raise ValueError('Optimizer not tuned for the ZDC proton detector')
+    case _:
+        raise ValueError('Invalid particle type')
 
 
 class VQVAE(nn.Module):

@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from zdc.models import LATENT_RESPONSE_SHAPE
+from zdc.models import LATENT_SHAPE, PARTICLE_TYPE, ParticleType
 from zdc.models.autoencoder.variational import VAE
 from zdc.models.flow_matching.flow_matching import FMUnet, loss_fn
 from zdc.utils.data import load, batches
@@ -12,7 +12,17 @@ from zdc.utils.nn import clip_image, init, forward, load_model, gradient_step, o
 from zdc.utils.train import train_loop
 
 
-optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.9, b2=0.6), peak_value=1.3e-3)
+n_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.90, b2=0.6), peak_value=1.3e-3)
+p_optimizer = opt_with_cosine_schedule(partial(optax.adam, b1=0.56, b2=0.46), peak_value=6.3e-3)
+
+
+match PARTICLE_TYPE:
+    case ParticleType.NEUTRON:
+        optimizer = n_optimizer
+    case ParticleType.PROTON:
+        optimizer = p_optimizer
+    case _:
+        raise ValueError('Invalid particle type')
 
 
 class LatentFMUnet(FMUnet):
@@ -20,7 +30,7 @@ class LatentFMUnet(FMUnet):
     channel_multipliers: tuple = (1, 2, 4)
     n_resnet_blocks: int = 1
     n_heads: int = 2
-    out_shape: tuple = LATENT_RESPONSE_SHAPE
+    out_shape: tuple = LATENT_SHAPE
 
 
 def encode_fn(x, batch_size, vae, vae_variables):
