@@ -37,6 +37,12 @@ def get_layers(params, layer_names):
         return {name: params[name] for name in layer_names}
 
 
+def clip_image(original_shape, img):
+    _, h, w, _ = original_shape
+    ph, pw = (img.shape[1] - h) // 2, (img.shape[2] - w) // 2
+    return img[:, ph:ph + h, pw:pw + w]
+
+
 def save_model(params, state, path):
     with lz4.frame.open(path, 'wb') as f:
         cloudpickle.dump((params, state), f)

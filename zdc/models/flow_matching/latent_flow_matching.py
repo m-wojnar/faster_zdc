@@ -8,7 +8,7 @@ from zdc.models import LATENT_RESPONSE_SHAPE
 from zdc.models.autoencoder.variational import VAE
 from zdc.models.flow_matching.flow_matching import FMUnet, loss_fn
 from zdc.utils.data import load, batches
-from zdc.utils.nn import init, forward, load_model, gradient_step, opt_with_cosine_schedule
+from zdc.utils.nn import clip_image, init, forward, load_model, gradient_step, opt_with_cosine_schedule
 from zdc.utils.train import train_loop
 
 
@@ -35,11 +35,10 @@ def latent_step_fn(params, carry, opt_state, optimizer, loss_fn):
 
 
 def generate_fn(params, state, key, *x, latent_model, vae_model, vae_variables):
-    _, h, w, _ = x[0].shape
+    original_shape = x[0].shape
     z, _ = forward(latent_model, params, state, key, x[-1], 8, method='gen')
     x, _ = forward(vae_model, *vae_variables, key, z, method='gen')
-    ph, pw = (x.shape[1] - h) // 2, (x.shape[2] - w) // 2
-    return x[:, ph:ph + h, pw:pw + w]
+    return clip_image(x, original_shape)
 
 
 if __name__ == '__main__':

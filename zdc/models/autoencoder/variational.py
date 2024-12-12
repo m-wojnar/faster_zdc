@@ -10,7 +10,7 @@ from zdc.models.gan.vgg_discriminator import Discriminator
 from zdc.utils.data import load
 from zdc.utils.grad import grad_norm
 from zdc.utils.losses import kl_loss, mse_loss, perceptual_loss
-from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
+from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule, clip_image
 from zdc.utils.train import train_loop
 
 
@@ -37,7 +37,8 @@ class VAE(nn.Module):
         z_mean = self.z_mean_conv(z)
         z_log_var = self.z_log_var_conv(z)
         z = self.sampling(z_mean, z_log_var)
-        return self.decoder(z), z_mean, z_log_var
+        x_hat = self.decoder(z)
+        return clip_image(img.shape, x_hat), z_mean, z_log_var
 
     def encode(self, img):
         z = self.encoder(img)
