@@ -9,10 +9,12 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 DEFAULT_PATH = '/home/wojnar/faster_zdc/data'
 
 
-def load(path=DEFAULT_PATH, scaler='standard', val_size=0.1, test_size=0.2, load_pdgid=False):
+def load(path=DEFAULT_PATH, scaler='standard', val_size=0.1, test_size=0.2, load_pdgid=False, add_ch_dim=True):
     responses = jnp.load(os.path.join(path, 'data_nonrandom_responses.npz'))['arr_0'].astype(float)
-    responses = responses[..., None]
     responses = jnp.log(responses + 1)
+
+    if add_ch_dim:
+        responses = responses[..., None]
 
     particles = jnp.load(os.path.join(path, 'data_nonrandom_particles.npz'))['arr_0'].astype(float)
     particles, pdgid = particles[..., :-1], particles[..., -1]
