@@ -8,19 +8,20 @@ from flax import linen as nn
 from zdc.layers import LayerNormF32
 from zdc.models import PARTICLE_TYPE, ParticleType
 from zdc.utils.data import load
-from zdc.utils.losses import mse_loss, wasserstein_loss
+from zdc.utils.losses import mse_loss
 from zdc.utils.nn import init, forward, gradient_step
-from zdc.utils.train import train_loop
+from zdc.utils.train import train_loop, default_generate_fn
 
 
-n_optimizer = optax.adam(4.4e-3, b1=0.25, b2=0.98)
+n_optimizer = optax.adam(3.7e-3, b1=0.53, b2=0.63)
+p_optimizer = optax.adam(1.7e-3, b1=0.74, b2=0.22)
 
 
 match PARTICLE_TYPE:
     case ParticleType.NEUTRON:
         optimizer = n_optimizer
     case ParticleType.PROTON:
-        pass
+        optimizer = p_optimizer
     case _:
         raise ValueError('Invalid particle type')
 
@@ -56,11 +57,8 @@ class MLP(nn.Module):
         x = nn.relu(x)
         return x
 
-
-def eval_fn(generated, *dataset):
-    ch_true, *_ = dataset
-    ch_true, ch_pred = jnp.exp(ch_true) - 1, jnp.exp(generated) - 1
-    return (wasserstein_loss(ch_true, ch_pred),)
+    def gen(self, x):
+        return self(x)
 
 
 def loss_fn(params, state, key, x, c, model):
@@ -80,12 +78,10 @@ if __name__ == '__main__':
     opt_state = optimizer.init(params)
 
     train_fn = jax.jit(partial(gradient_step, optimizer=optimizer, loss_fn=partial(loss_fn, model=model)))
-    eval_fn = jax.jit(eval_fn)
-    generate_fn = jax.jit(lambda params, state, key, *x: forward(model, params, state, key, x[1])[0])
+    generate_fn = jax.jit(default_generate_fn(model))
     train_metrics = ('loss',)
-    eval_metrics = ('wasserstein',)
 
     train_loop(
-        'mlp', train_fn, eval_fn, generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
-        train_metrics, eval_metrics, params, state, opt_state, train_key
+        'mlp_neutron', train_fn, 'channel', generate_fn, (r_train, p_train), (r_val, p_val), (r_test, p_test),
+        train_metrics, None, params, state, opt_state, train_key
     )

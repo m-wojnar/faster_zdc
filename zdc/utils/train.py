@@ -24,6 +24,15 @@ def default_eval_fn(generated, *dataset):
     return rmse, mae, wasserstein
 
 
+def channel_eval_fn(generated, *dataset):
+    ch_true, *_ = dataset
+    ch_true, ch_pred = jnp.exp(ch_true) - 1, jnp.exp(generated) - 1
+    mae = mae_loss(ch_true, ch_pred) / 5
+    wasserstein = wasserstein_loss(ch_true, ch_pred)
+
+    return mae, wasserstein
+
+
 def default_generate_fn(model):
     def generate_fn(params, state, key, *x):
         return forward(model, params, state, key, x[1], method='gen')[0].astype(jnp.float32)
@@ -38,6 +47,9 @@ def train_loop(
     if eval_fn is None:
         eval_fn = default_eval_fn
         eval_metrics = ('rmse', 'mae', 'wasserstein')
+    elif eval_fn == 'channel':
+        eval_fn = channel_eval_fn
+        eval_metrics = ('mae', 'wasserstein')
 
     metrics = Metrics(job_type='train', name=name)
     os.makedirs(f'checkpoints/{name}', exist_ok=True)
