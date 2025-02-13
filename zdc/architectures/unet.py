@@ -2,6 +2,7 @@ import jax.numpy as jnp
 from flax import linen as nn
 
 from zdc.layers import AttentionBlock, Conv, DownSample, LayerNormF32, ResidualBlock, UpSample, Concatenate, Reshape
+from zdc.models import GLOBAL_DTYPE
 
 
 class MLP(nn.Module):
@@ -9,9 +10,9 @@ class MLP(nn.Module):
 
     @nn.compact
     def __call__(self, x):
-        x = nn.Dense(self.dim, use_bias=False, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.dim, use_bias=False, dtype=GLOBAL_DTYPE)(x)
         x = nn.silu(x)
-        x = nn.Dense(self.dim, use_bias=False, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.dim, use_bias=False, dtype=GLOBAL_DTYPE)(x)
         return x
 
 
@@ -44,7 +45,7 @@ class CondAttentionBlock(nn.Module):
     @nn.compact
     def __call__(self, x, c):
         b, h, w, _ = x.shape
-        c = nn.Dense(x.shape[-1], use_bias=False, dtype=jnp.bfloat16)(c)
+        c = nn.Dense(x.shape[-1], use_bias=False, dtype=GLOBAL_DTYPE)(c)
         c = c[:, None]
         x = Reshape((-1, x.shape[-1]))(x)
         x = Concatenate(axis=1)(x, c)

@@ -6,7 +6,7 @@ import optax
 from flax import linen as nn
 
 from zdc.layers import Flatten, Reshape, VectorQuantizer
-from zdc.models import PARTICLE_SHAPE, ParticleType, PARTICLE_TYPE
+from zdc.models import GLOBAL_DTYPE, PARTICLE_SHAPE, ParticleType, PARTICLE_TYPE
 from zdc.utils.data import load
 from zdc.utils.losses import mse_loss
 from zdc.utils.nn import init, forward, gradient_step, opt_with_cosine_schedule
@@ -31,13 +31,13 @@ class Encoder(nn.Module):
 
     @nn.compact
     def __call__(self, cond):
-        x = nn.Dense(self.hidden_dim, dtype=jnp.bfloat16)(cond)
+        x = nn.Dense(self.hidden_dim, dtype=GLOBAL_DTYPE)(cond)
         x = nn.gelu(x)
-        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=GLOBAL_DTYPE)(x)
         x = nn.gelu(x)
-        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=GLOBAL_DTYPE)(x)
         x = nn.gelu(x)
-        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=GLOBAL_DTYPE)(x)
         x = nn.gelu(x)
         x = Reshape((self.latent_dim, self.hidden_dim))(x)
         return x
@@ -50,13 +50,13 @@ class Decoder(nn.Module):
     @nn.compact
     def __call__(self, z):
         x = Flatten()(z)
-        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=GLOBAL_DTYPE)(x)
         x = nn.gelu(x)
-        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.latent_dim * self.hidden_dim, dtype=GLOBAL_DTYPE)(x)
         x = nn.gelu(x)
-        x = nn.Dense(self.hidden_dim, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(self.hidden_dim, dtype=GLOBAL_DTYPE)(x)
         x = nn.gelu(x)
-        x = nn.Dense(*PARTICLE_SHAPE, dtype=jnp.bfloat16)(x)
+        x = nn.Dense(*PARTICLE_SHAPE, dtype=GLOBAL_DTYPE)(x)
         return x
 
 

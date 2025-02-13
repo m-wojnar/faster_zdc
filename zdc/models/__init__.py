@@ -6,6 +6,8 @@ class ParticleType(Enum):
     PROTON = 1
 
 
+GLOBAL_DTYPE = 'bfloat16'
+
 PARTICLE_TYPE = ParticleType.PROTON
 PARTICLE_SHAPE = (9,)
 

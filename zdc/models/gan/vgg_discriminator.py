@@ -3,6 +3,7 @@ from flax import linen as nn
 from flaxmodels.vgg import VGG16
 
 from zdc.layers import Flatten
+from zdc.models import GLOBAL_DTYPE
 
 
 class FeatureExtractor(nn.Module):
@@ -18,7 +19,7 @@ class FeatureExtractor(nn.Module):
                 kernel_size=(self.kernel_size_in, self.kernel_size_in),
                 strides=(self.kernel_size_in, self.kernel_size_in),
                 padding='VALID',
-                dtype=jnp.bfloat16,
+                dtype=GLOBAL_DTYPE,
                 kernel_init=nn.initializers.zeros
             )(x)
             x = nn.relu(x)
@@ -28,7 +29,7 @@ class FeatureExtractor(nn.Module):
             kernel_size=(self.kernel_size_out, self.kernel_size_out),
             strides=(self.kernel_size_out, self.kernel_size_out),
             padding='VALID',
-            dtype=jnp.bfloat16,
+            dtype=GLOBAL_DTYPE,
             kernel_init=nn.initializers.zeros
         )(x)
         x = Flatten()(x)
@@ -40,7 +41,7 @@ class Discriminator(nn.Module):
     @nn.compact
     def __call__(self, x):
         x = vgg_preprocess(x)
-        out = VGG16(output='activations', pretrained='imagenet', include_head=False, dtype=jnp.bfloat16)(x)
+        out = VGG16(output='activations', pretrained='imagenet', include_head=False, dtype=GLOBAL_DTYPE)(x)
         fe1 = FeatureExtractor(channels=32, kernel_size_in=4, kernel_size_out=4)(out['relu1_2'])
         fe2 = FeatureExtractor(channels=64, kernel_size_in=4, kernel_size_out=2)(out['relu2_2'])
         fe3 = FeatureExtractor(channels=128, kernel_size_in=2, kernel_size_out=2)(out['relu3_3'])

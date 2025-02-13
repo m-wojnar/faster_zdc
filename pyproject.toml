@@ -25,6 +25,12 @@ dependencies = [
   "wandb~=0.18.3"
 ]
 
+[project.optional-dependencies]
+export = [
+  "tensorflow~=2.18.0",
+  "tf2onnx~=1.16.1"
+]
+
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"

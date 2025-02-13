@@ -33,20 +33,31 @@ class FMUnet(UNet):
     n_heads: int = 2
     out_shape: tuple = RESPONSE_SHAPE
 
-    def gen(self, cond, n_steps=11):
+    def _gen(self, cond, z, n_steps):
         def scan_fn(unet, x, t):
             t = jnp.full(cond.shape[0], t)
             v = unet(x, cond, t)
             x = x + v / n_steps
             return x, None
 
-        z = jax.random.normal(self.make_rng('zdc'), (cond.shape[0], *self.out_shape))
         scan = nn.scan(scan_fn, variable_broadcast='params')
         x, _ = scan(self, z, jnp.linspace(0.0, 1.0, n_steps, endpoint=False))
         return x
 
+    def gen(self, cond, n_steps=11):
+        z = jax.random.normal(self.make_rng('zdc'), (cond.shape[0], *self.out_shape))
+        return self._gen(cond, z, n_steps)
+
+    def gen_onnx(self, cond, z, n_steps=11):
+        return self._gen(cond, z, n_steps)
+
     def gen_zdc(self, cond, n_steps=11):
         x = self.gen(cond, n_steps)
+        x = nn.relu(x)
+        return x
+
+    def gen_zdc_onnx(self, cond, z, n_steps=11):
+        x = self.gen_onnx(cond, z, n_steps)
         x = nn.relu(x)
         return x
 

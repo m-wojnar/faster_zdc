@@ -3,6 +3,7 @@ import jax.numpy as jnp
 from flax import linen as nn
 
 from zdc.layers import TransformerBlock, Concatenate
+from zdc.models import GLOBAL_DTYPE
 
 
 class Transformer(nn.Module):
@@ -25,8 +26,8 @@ class Transformer(nn.Module):
             TransformerBlock(self.num_heads, self.hidden_dim, self.drop_rate, self.decode)
             for _ in range(self.num_layers)
         ]
-        self.out_ln_x = nn.LayerNorm(use_bias=False, dtype=jnp.bfloat16)
-        self.out_ln_c = nn.LayerNorm(use_bias=False, dtype=jnp.bfloat16)
+        self.out_ln_x = nn.LayerNorm(use_bias=False, dtype=GLOBAL_DTYPE)
+        self.out_ln_c = nn.LayerNorm(use_bias=False, dtype=GLOBAL_DTYPE)
         self.post_concat = Concatenate(axis=1)
 
     def __call__(self, cond, x, pos, mask, training=True):
@@ -82,7 +83,7 @@ class GPT(nn.Module):
         else:
             tokens = jnp.concatenate([cond, x], axis=1)
             pos = jnp.arange(tokens.shape[1])
-            mask = nn.make_causal_mask(tokens, dtype=jnp.bfloat16)
+            mask = nn.make_causal_mask(tokens, dtype=GLOBAL_DTYPE)
 
         return Transformer(
             self.vocab_size, self.embed_dim, self.seq_len, self.max_len, self.hidden_dim,

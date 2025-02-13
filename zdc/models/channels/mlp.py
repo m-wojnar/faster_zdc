@@ -1,12 +1,11 @@
 from functools import partial
 
 import jax
-import jax.numpy as jnp
 import optax
 from flax import linen as nn
 
 from zdc.layers import LayerNormF32
-from zdc.models import PARTICLE_TYPE, ParticleType
+from zdc.models import GLOBAL_DTYPE, PARTICLE_TYPE, ParticleType
 from zdc.utils.data import load
 from zdc.utils.losses import mse_loss
 from zdc.utils.nn import init, forward, gradient_step
@@ -33,7 +32,7 @@ class MLP(nn.Module):
     
     @nn.compact
     def __call__(self, c, training=True):
-        dense = partial(nn.Dense, dtype=jnp.bfloat16)
+        dense = partial(nn.Dense, dtype=GLOBAL_DTYPE)
         dropout = partial(nn.Dropout, rate=self.drop_rate)
         
         x = dense(self.dim)(c)

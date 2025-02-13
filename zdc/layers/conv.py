@@ -2,6 +2,8 @@ import jax
 from flax import linen as nn
 from jax import numpy as jnp
 
+from zdc.models import GLOBAL_DTYPE
+
 
 class Conv(nn.Module):
     channels: int
@@ -22,7 +24,7 @@ class Conv(nn.Module):
             strides=(self.strides, self.strides),
             padding='SAME',
             use_bias=False,
-            dtype=jnp.bfloat16,
+            dtype=GLOBAL_DTYPE,
             kernel_init=nn.initializers.normal(init_std, dtype=jnp.float32)
         )(x)
 
@@ -92,7 +94,7 @@ class AttentionBlock(nn.Module):
         x = nn.MultiHeadDotProductAttention(
             num_heads=self.n_heads,
             qkv_features=self.channels,
-            dtype=jnp.bfloat16,
+            dtype=GLOBAL_DTYPE,
             out_kernel_init=nn.initializers.normal(0.2 / self.channels ** 0.5),
             use_bias=False
         )(x)
